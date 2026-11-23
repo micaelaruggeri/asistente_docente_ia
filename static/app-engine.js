@@ -7,6 +7,7 @@
 
   const RE_EXAMEN = /^(.*?)\s*(?:[([\-–—]\s*(?:examen|exam\.?|ex\.?|eval(?:uaci[oó]n)?\.?|parcial|instancia\s*1)\s*[)\]]?|\s+(?:examen|exam\.?|eval(?:uaci[oó]n)?\.?))$/i;
   const RE_RECU = /^(.*?)\s*(?:[([\-–—]\s*(?:recu(?:peratorio|peraci[oó]n|p)?\.?|rec\.?|instancia\s*2)\s*[)\]]?|\s+(?:recu(?:peratorio|peraci[oó]n|p)?\.?|rec\.?))$/i;
+  const RE_INTENSIF = /^(.*?)\s*(?:[([\-–—]\s*(?:intensific(?:ada|o|ó|\.)?|intensif\.?|verif(?:icada)?\.?)\s*[)\]]?|\s+(?:intensificada|intensific[oó]|intensif\.?))$/i;
   const RE_PANDAS_DUP = /(?:\.\d+|_\d+)$/;
   const RE_GRADE_NUM = /^(\d+(?:\.\d+)?)(?:\s*\/\s*10|\s*(?:pts?|puntos?|\+|-))?$/i;
 
@@ -89,6 +90,13 @@
       return Number.isFinite(f) ? Math.round(f * 100) / 100 : null;
     }
     return null;
+  }
+
+  function toBoolFlag(val) {
+    if (val === true || val === 1) return true;
+    if (val === false || val === 0 || val === null || val === undefined) return false;
+    const s = String(val).trim().toLowerCase();
+    return ['si', 'sí', 'true', '1', 'x', 'ok', '✓', '✔', 'intensificada', 'intensifico', 'intensificó', 'aprobada'].includes(s);
   }
 
   function parseCsvTextToMatrix(text) {
@@ -219,12 +227,16 @@
         return;
       }
 
-      const mRecu = RE_RECU.exec(colClean);
-      const mExam = RE_EXAMEN.exec(colClean);
+      const mIntensif = RE_INTENSIF.exec(colClean);
+      const mRecu = mIntensif ? null : RE_RECU.exec(colClean);
+      const mExam = (mIntensif || mRecu) ? null : RE_EXAMEN.exec(colClean);
 
       let unitName;
       let slot;
-      if (mRecu) {
+      if (mIntensif) {
+        unitName = mIntensif[1].replace(/^[\s\-–—:()]+|[\s\-–—:()]+$/g, '');
+        slot = 'intensificado';
+      } else if (mRecu) {
         unitName = mRecu[1].replace(/^[\s\-–—:()]+|[\s\-–—:()]+$/g, '');
         slot = 'recu';
       } else if (mExam) {
@@ -242,7 +254,7 @@
         existingKey = unitName;
         unitOrder.push(existingKey);
         unitNormToKey[normName] = existingKey;
-        unitsMap[existingKey] = { examen: null, recu: null };
+        unitsMap[existingKey] = { examen: null, recu: null, intensificado: null };
       }
 
       if (unitsMap[existingKey][slot] === null) {
@@ -259,19 +271,23 @@
     return { metaMap, unitsMap: orderedUnits, extraCols };
   }
 
-  function computeStudentRecord({ colegio, curso, nombre, apellido, sheetName, sourceFile, unitNames, rawGrades, extras }) {
+  function computeStudentRecord({ colegio, curso, nombre, apellido, sheetName, sourceFile, unitNames, rawGrades, rawIntensified = {}, extras }) {
     const unidadesDetalle = [];
     const unidadesIntensificar = [];
+    const unidadesPendientesTotales = [];
     const notasVigentes = [];
 
     unitNames.forEach((uName) => {
       const pair = rawGrades[uName] || [null, null];
       const notaEx = pair[0];
       const notaRc = pair[1];
+      const aprobadaPorNota = (notaEx !== null && notaEx >= PASSING_GRADE) || (notaRc !== null && notaRc >= PASSING_GRADE);
+      const intensificado = aprobadaPorNota ? false : Boolean(rawIntensified[uName]);
 
       let uEstado;
       let motivo;
       let notaFinal;
+      let requiereIntensificacion = false;
 
       if (notaEx !== null && notaEx >= PASSING_GRADE) {
         uEstado = 'Aprobada';
@@ -282,7 +298,7 @@
         motivo = notaRc < 7.0 ? `Aprobada en recuperatorio (${notaRc} equivale a 7)` : 'Aprobada en recuperatorio';
         notaFinal = notaRc;
       } else {
-        uEstado = 'Intensifica';
+        requiereIntensificacion = true;
         if (notaEx === null && notaRc === null) {
           motivo = 'Sin calificaciones registradas (ausente en examen y recuperatorio)';
           notaFinal = null;
@@ -294,6 +310,13 @@
           motivo = `Examen (${exTxt}) y Recuperatorio (${notaRc}) menores a 6.75`;
           notaFinal = notaEx !== null ? Math.max(notaEx, notaRc) : notaRc;
         }
+
+        if (intensificado) {
+          uEstado = 'Intensificada';
+          motivo = `${motivo} — Ya intensificada (verificada)`;
+        } else {
+          uEstado = 'Intensifica';
+        }
       }
 
       if (notaFinal !== null) notasVigentes.push(notaFinal);
@@ -304,26 +327,33 @@
         recu: notaRc,
         nota_final: notaFinal,
         estado: uEstado,
+        requiere_intensificacion: requiereIntensificacion,
+        intensificado,
         intensifica: uEstado === 'Intensifica',
         motivo,
       };
       unidadesDetalle.push(unitInfo);
       if (unitInfo.intensifica) unidadesIntensificar.push(unitInfo);
+      if (unitInfo.requiere_intensificacion) unidadesPendientesTotales.push(unitInfo);
     });
 
     const promedio = notasVigentes.length
       ? Math.round((notasVigentes.reduce((a, b) => a + b, 0) / notasVigentes.length) * 100) / 100
       : 0.0;
     const cantIntensificar = unidadesIntensificar.length;
+    const cantPendientesTotales = unidadesPendientesTotales.length;
+    const cantIntensificadas = cantPendientesTotales - cantIntensificar;
     const totalUnidades = unitNames.length;
 
     let estado;
     let nivelRiesgo;
     let motivosRiesgo;
     if (cantIntensificar === 0) {
-      estado = 'Aprobado';
+      estado = cantIntensificadas > 0 ? 'Acreditado (Intensif.)' : 'Aprobado';
       nivelRiesgo = 'Bajo';
-      motivosRiesgo = 'Todas las unidades aprobadas (>= 6.75 / equivale a 7)';
+      motivosRiesgo = cantIntensificadas > 0
+        ? `Completó la intensificación de ${cantIntensificadas} unidad(es)`
+        : 'Todas las unidades aprobadas (>= 6.75 / equivale a 7)';
     } else {
       estado = 'Intensifica';
       const ratio = totalUnidades > 0 ? cantIntensificar / totalUnidades : 1.0;
@@ -344,7 +374,10 @@
       unidades: unidadesDetalle,
       unidades_nombres: [...unitNames],
       unidades_intensificar: unidadesIntensificar,
+      unidades_pendientes_totales: unidadesPendientesTotales,
       cant_intensificar: cantIntensificar,
+      cant_intensificadas: cantIntensificadas,
+      cant_pendientes_totales: cantPendientesTotales,
       cant_aprobadas: totalUnidades - cantIntensificar,
       total_unidades: totalUnidades,
       promedio,
@@ -465,10 +498,13 @@
           : sheetName || 'Sin curso';
 
       const rawGrades = {};
+      const rawIntensified = {};
       unitNames.forEach((uName) => {
         const cEx = unitsMap[uName].examen;
         const cRc = unitsMap[uName].recu;
+        const cIn = unitsMap[uName].intensificado;
         rawGrades[uName] = [cEx !== null ? toGrade(row[cEx]) : null, cRc !== null ? toGrade(row[cRc]) : null];
+        rawIntensified[uName] = cIn !== null && cIn !== undefined ? toBoolFlag(row[cIn]) : false;
       });
 
       const extras = {};
@@ -486,6 +522,7 @@
           sourceFile,
           unitNames,
           rawGrades,
+          rawIntensified,
           extras,
         })
       );
@@ -673,9 +710,11 @@
         const extrasIn = r.extras || {};
 
         const rawGrades = {};
+        const rawIntensified = {};
         cleanUnits.forEach((uName) => {
           const slot = gradesIn[uName] || {};
           rawGrades[uName] = [toGrade(slot.examen), toGrade(slot.recu)];
+          rawIntensified[uName] = Boolean(slot.intensificado);
         });
 
         const extrasDict = {};
@@ -694,6 +733,7 @@
             sourceFile: 'Carga directa en pantalla',
             unitNames: cleanUnits,
             rawGrades,
+            rawIntensified,
             extras: extrasDict,
           })
         );
@@ -772,7 +812,7 @@
       }
 
       const total = filtered.length;
-      const aprobados = filtered.filter((s) => s.estado === 'Aprobado').length;
+      const aprobados = filtered.filter((s) => !s.en_riesgo).length;
       const intensifican = total - aprobados;
       const promedioGeneral = Math.round((filtered.reduce((acc, s) => acc + s.promedio, 0) / total) * 100) / 100;
       const tasaAprobacion = Math.round((aprobados / total) * 1000) / 10;
@@ -852,6 +892,55 @@
       return this.students.find((s) => s.id_alumno === numId) || null;
     }
 
+    toggleUnitIntensified(studentId, unitName, checked) {
+      const numId = Number(studentId);
+      const idx = this.students.findIndex((s) => s.id_alumno === numId);
+      if (idx === -1) return { ok: false, error: 'Alumno no encontrado.' };
+
+      const cur = this.students[idx];
+      const rawGrades = {};
+      const rawIntensified = {};
+      (cur.unidades || []).forEach((u) => {
+        rawGrades[u.unidad] = [u.examen, u.recu];
+        rawIntensified[u.unidad] = u.unidad === unitName ? Boolean(checked) : Boolean(u.intensificado);
+      });
+
+      const updated = computeStudentRecord({
+        colegio: cur.colegio,
+        curso: cur.curso,
+        nombre: cur.nombre,
+        apellido: cur.apellido,
+        sheetName: cur.hoja,
+        sourceFile: cur.archivo_origen,
+        unitNames: cur.unidades_nombres || (cur.unidades || []).map((u) => u.unidad),
+        rawGrades,
+        rawIntensified,
+        extras: cur.extras,
+      });
+      updated.id_alumno = cur.id_alumno;
+      this.students[idx] = updated;
+      this.saveLocalSnapshot();
+
+      const snapshotCourses = this.exportCoursesSnapshot(false);
+      const targetCourseId = makeSafeId(`${updated.colegio.toLowerCase()}|${updated.curso.toLowerCase()}`, 'c');
+      const targetCourse = snapshotCourses.find((c) => c.course_id === targetCourseId) || null;
+      const targetRow = targetCourse
+        ? targetCourse.rows.find(
+            (r) =>
+              normalizeKey(r.nombre) === normalizeKey(updated.nombre) &&
+              normalizeKey(r.apellido) === normalizeKey(updated.apellido)
+          ) || null
+        : null;
+
+      return {
+        ok: true,
+        student: updated,
+        courseSnapshot: targetCourse,
+        studentRow: targetRow,
+        courses_snapshot: snapshotCourses,
+      };
+    }
+
     getExtraColumnsForStudents(studentsList) {
       const cols = [];
       studentsList.forEach((s) => {
@@ -901,7 +990,11 @@
 
           const grades = {};
           (s.unidades || []).forEach((u) => {
-            grades[u.unidad] = { examen: u.examen ?? null, recu: u.recu ?? null };
+            grades[u.unidad] = {
+              examen: u.examen ?? null,
+              recu: u.recu ?? null,
+              intensificado: Boolean(u.intensificado),
+            };
           });
 
           const extras = {};
@@ -963,9 +1056,11 @@
           const extrasIn = r.extras || {};
 
           const rawGrades = {};
+          const rawIntensified = {};
           cleanUnits.forEach((uName) => {
             const slot = gradesIn[uName] || {};
             rawGrades[uName] = [toGrade(slot.examen), toGrade(slot.recu)];
+            rawIntensified[uName] = Boolean(slot.intensificado);
           });
 
           const extrasDict = {};
@@ -984,6 +1079,7 @@
               sourceFile: sourceLabel,
               unitNames: cleanUnits,
               rawGrades,
+              rawIntensified,
               extras: extrasDict,
             })
           );
@@ -1018,21 +1114,28 @@
       (student.unidades || []).forEach((u) => {
         const exStr = u.examen !== null ? String(u.examen) : 'Ausente';
         const rcStr = u.recu !== null ? String(u.recu) : '—';
-        const badge = u.intensifica ? 'Intensifica' : u.estado;
+        const badge = u.intensifica ? 'Intensifica (Pendiente)' : u.estado === 'Intensificada' ? 'Intensificada ✓' : u.estado;
         lines.push(`| ${u.unidad} | ${exStr} | ${rcStr} | **${badge}** |`);
       });
 
       lines.push('');
-      if (student.cant_intensificar === 0) {
+      if (student.cant_intensificar === 0 && student.cant_intensificadas > 0) {
+        lines.push('## Situación de Intensificación');
+        lines.push(`**${student.nombre_completo}** completó y acreditó la intensificación de todas sus unidades pendientes (${student.cant_intensificadas}/${student.cant_pendientes_totales}). **No tiene unidades pendientes.**`);
+      } else if (student.cant_intensificar === 0) {
         lines.push('## Situación de Intensificación');
         lines.push(`**${student.nombre_completo}** aprobó todas las unidades evaluadas con calificación igual o superior a **7**. **No debe intensificar ninguna unidad.**`);
       } else {
-        lines.push(`## Unidades a Intensificar (${student.cant_intensificar})`);
-        lines.push(`Para acreditar la materia, **${student.nombre_completo}** debe intensificar los contenidos de las siguientes unidades:`);
+        lines.push(`## Unidades Pendientes de Intensificar (${student.cant_intensificar})`);
+        lines.push(`Para acreditar la materia, **${student.nombre_completo}** todavía debe intensificar los contenidos de las siguientes unidades:`);
         lines.push('');
         student.unidades_intensificar.forEach((u) => {
           lines.push(`- **${u.unidad}**: ${u.motivo}.`);
         });
+        if (student.cant_intensificadas > 0) {
+          lines.push('');
+          lines.push(`*Ya intensificadas y verificadas (${student.cant_intensificadas}): ${student.unidades.filter((u) => u.intensificado).map((u) => u.unidad).join(', ')}.*`);
+        }
       }
       return lines.join('\n');
     }
@@ -1046,11 +1149,13 @@
             return `${u.unidad} [Ex:${exS}, Recu:${rcS} -> ${u.estado}]`;
           });
           const intNames = (s.unidades_intensificar || []).map((u) => u.unidad).join(', ') || 'Ninguna';
+          const doneNames = (s.unidades || []).filter((u) => u.intensificado).map((u) => u.unidad).join(', ');
+          const doneTxt = doneNames ? ` | Ya intensificadas: ${doneNames}` : '';
           const extrasEntries = Object.entries(s.extras || {}).filter(([, v]) => String(v).trim() !== '');
           const extrasTxt = extrasEntries.length
             ? ' | Extras: ' + extrasEntries.map(([k, v]) => `${k}=${v}`).join(', ')
             : '';
-          return `- ${s.nombre_completo} | Colegio: ${s.colegio} | Curso: ${s.curso} | Estado: ${s.estado} | Promedio: ${s.promedio} | Intensifica (${s.cant_intensificar}): ${intNames} | Detalle: ${unitParts.join(' ; ')}${extrasTxt}`;
+          return `- ${s.nombre_completo} | Colegio: ${s.colegio} | Curso: ${s.curso} | Estado: ${s.estado} | Promedio: ${s.promedio} | Pendientes de intensificar (${s.cant_intensificar}): ${intNames}${doneTxt} | Detalle: ${unitParts.join(' ; ')}${extrasTxt}`;
         })
         .join('\n');
     }
@@ -1070,19 +1175,19 @@
       let answer = '*(Respuesta generada en modo local)*\n\n';
       if (['intensific', 'riesgo', 'desaprob', 'quiénes deben', 'quienes deben', 'pendiente'].some((k) => qLower.includes(k))) {
         if (riskStudents.length === 0) {
-          answer += '¡Excelente! Todos los alumnos aprobaron todas las unidades con 7 o más.';
+          answer += '¡Excelente! Ningún alumno tiene unidades pendientes de intensificar.';
         } else {
-          answer += `Hay **${riskStudents.length} alumnos** que deben intensificar unidades:\n\n`;
+          answer += `Hay **${riskStudents.length} alumnos** con unidades pendientes de intensificar:\n\n`;
           riskStudents.forEach((s) => {
             const uList = s.unidades_intensificar.map((u) => u.unidad).join(', ');
             answer += `- **${s.nombre_completo}** (${s.colegio} - ${s.curso}): intensifica **${uList}**.\n`;
           });
         }
-      } else if (['aprob', 'tasa'].some((k) => qLower.includes(k))) {
-        const aprobados = studentsList.filter((s) => s.estado === 'Aprobado');
-        answer += `Aprobaron **${aprobados.length} de ${stats.total_alumnos} alumnos** (${stats.tasa_aprobacion}%):\n`;
+      } else if (['aprob', 'tasa', 'acredit'].some((k) => qLower.includes(k))) {
+        const aprobados = studentsList.filter((s) => !s.en_riesgo);
+        answer += `Aprobaron/acreditaron **${aprobados.length} de ${stats.total_alumnos} alumnos** (${stats.tasa_aprobacion}%):\n`;
         aprobados.forEach((s) => {
-          answer += `- **${s.nombre_completo}** (${s.curso}) — Promedio: ${s.promedio}\n`;
+          answer += `- **${s.nombre_completo}** (${s.curso}) — ${s.estado} (Prom: ${s.promedio})\n`;
         });
       } else if (['mejor', 'más alto', 'mas alto', 'destacado'].some((k) => qLower.includes(k))) {
         const ma = stats.mejor_alumno;
@@ -1133,14 +1238,16 @@
       });
 
       lines.push('');
-      lines.push('## 3. Reporte por Alumno — Unidades a Intensificar');
-      if (riskStudents.length === 0) {
+      lines.push('## 3. Reporte por Alumno — Unidades Pendientes e Intensificadas');
+      const tracked = this.getStudentsList(colegio, curso).filter((s) => s.cant_pendientes_totales > 0);
+      if (tracked.length === 0) {
         lines.push('Todos los alumnos aprobaron todas las unidades con calificación >= 7.');
       } else {
-        riskStudents.forEach((s) => {
+        tracked.forEach((s) => {
           lines.push(`### ${s.nombre_completo} (${s.colegio} — ${s.curso})`);
-          s.unidades_intensificar.forEach((u) => {
-            lines.push(`- **${u.unidad}**: ${u.motivo}.`);
+          (s.unidades_pendientes_totales || []).forEach((u) => {
+            const flag = u.intensificado ? '[✓ Intensificada]' : '[Pendiente]';
+            lines.push(`- ${flag} **${u.unidad}**: ${u.motivo}.`);
           });
           lines.push('');
         });
@@ -1183,6 +1290,8 @@
         const { units: grpUnits } = this.unitsForStudents(grp);
         const grpExtras = this.getExtraColumnsForStudents(grp);
 
+        const hasIntensifFlags = grp.some((s) => (s.unidades || []).some((u) => u.intensificado));
+
         const records = grp.map((s) => {
           const row = {
             colegio: s.colegio,
@@ -1198,6 +1307,9 @@
             const uObj = uLookup[uName];
             row[`${uName} (Examen)`] = uObj && uObj.examen !== null ? uObj.examen : null;
             row[`${uName} (Recu)`] = uObj && uObj.recu !== null ? uObj.recu : null;
+            if (hasIntensifFlags) {
+              row[`${uName} (Intensificada)`] = uObj && uObj.intensificado ? 'Sí' : '';
+            }
           });
           grpExtras.forEach((exCol) => {
             const colHeader = EXTRA_TEXT_COLS.has(normalizeKey(exCol)) ? exCol : `Extra: ${exCol}`;
@@ -1352,11 +1464,11 @@
               didParseCell: (hookData) => {
                 if (hookData.section === 'body') {
                   const txt = String(hookData.cell.raw || '').toLowerCase();
-                  if (txt.includes('intensifica')) {
-                    hookData.cell.styles.textColor = [190, 18, 60];
-                    hookData.cell.styles.fontStyle = 'bold';
-                  } else if (txt.includes('aprobada')) {
+                  if (txt.includes('intensificada') || txt.includes('aprobada')) {
                     hookData.cell.styles.textColor = [4, 120, 87];
+                    hookData.cell.styles.fontStyle = 'bold';
+                  } else if (txt.includes('intensifica')) {
+                    hookData.cell.styles.textColor = [190, 18, 60];
                     hookData.cell.styles.fontStyle = 'bold';
                   }
                 }

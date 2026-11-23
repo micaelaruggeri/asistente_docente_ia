@@ -112,7 +112,7 @@
         },
         "grades": {
           "type": "object",
-          "description": "Mapa de calificaciones por unidad: { unidad: { examen, recu } }."
+          "description": "Mapa de calificaciones por unidad: { unidad: { examen, recu, intensificado } }."
         },
         "extras": {
           "type": "object",
