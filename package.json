@@ -9,7 +9,7 @@
     "preview": "node start_server.mjs",
     "clean": "rm -rf dist",
     "start": "node start_server.mjs",
-    "lint": "npx eslint firestore.rules && node --check start_server.mjs && node --check scripts/build.mjs && node --check static/app-engine.js"
+    "lint": "npx eslint firestore.rules && node --check start_server.mjs && node --check scripts/build.mjs && node --check lib/ai-auth.mjs && node --check lib/gemini-handler.mjs && node --check netlify/functions/api.mjs && node --check static/app-engine.js"
   },
   "devDependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",

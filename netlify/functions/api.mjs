@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateGeminiText, hasGeminiKey } from '../../lib/gemini-handler.mjs';
+import { authorizeAiRequest } from '../../lib/ai-auth.mjs';
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -34,9 +35,11 @@ export default async (req) => {
   }
 
   if (req.method === 'GET' && pathname.endsWith('/status')) {
+    const authz = await authorizeAiRequest(req.headers.get('authorization'));
     return jsonResponse({
       status: 'ready',
       has_gemini: hasGeminiKey(),
+      ai_authorized: authz.ok,
       runtime: 'netlify',
     });
   }
@@ -51,6 +54,14 @@ export default async (req) => {
 
   if (req.method === 'POST' && pathname.endsWith('/ai')) {
     try {
+      const authz = await authorizeAiRequest(req.headers.get('authorization'));
+      if (!authz.ok) {
+        return jsonResponse(
+          { ok: false, has_gemini: hasGeminiKey(), ai_authorized: false, detail: authz.error },
+          authz.status
+        );
+      }
+
       const body = await req.json();
       const prompt = String(body?.prompt || '').trim();
       const systemInstruction = String(body?.systemInstruction || '').trim();
@@ -59,7 +70,7 @@ export default async (req) => {
       }
 
       if (!hasGeminiKey()) {
-        return jsonResponse({ ok: false, has_gemini: false, detail: 'Modo analítico local activo.' }, 200);
+        return jsonResponse({ ok: false, has_gemini: false, ai_authorized: true, detail: 'Modo analítico local activo.' }, 200);
       }
 
       const result = await generateGeminiText({ prompt, systemInstruction });

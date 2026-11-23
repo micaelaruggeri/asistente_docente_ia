@@ -3,6 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { generateGeminiText, hasGeminiKey } from './lib/gemini-handler.mjs';
+import { authorizeAiRequest } from './lib/ai-auth.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = process.cwd();
@@ -56,9 +57,11 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   if (req.method === 'GET' && pathname === '/api/status') {
+    const authz = await authorizeAiRequest(req.headers.authorization);
     return sendJson(res, 200, {
       status: 'ready',
       has_gemini: hasGeminiKey(),
+      ai_authorized: authz.ok,
       runtime: 'node',
     });
   }
@@ -74,6 +77,15 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && pathname === '/api/ai') {
     try {
+      const authz = await authorizeAiRequest(req.headers.authorization);
+      if (!authz.ok) {
+        return sendJson(res, authz.status, {
+          ok: false,
+          has_gemini: hasGeminiKey(),
+          ai_authorized: false,
+          detail: authz.error,
+        });
+      }
       const body = await readJsonBody(req);
       const prompt = String(body?.prompt || '').trim();
       const systemInstruction = String(body?.systemInstruction || '').trim();
@@ -81,7 +93,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { detail: 'El prompt no puede estar vacío.' });
       }
       if (!hasGeminiKey()) {
-        return sendJson(res, 200, { ok: false, has_gemini: false, detail: 'Modo analítico local activo.' });
+        return sendJson(res, 200, { ok: false, has_gemini: false, ai_authorized: true, detail: 'Modo analítico local activo.' });
       }
       const result = await generateGeminiText({ prompt, systemInstruction });
       return sendJson(res, 200, result);

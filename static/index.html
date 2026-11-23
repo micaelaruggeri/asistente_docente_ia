@@ -717,37 +717,91 @@
         const engine = new window.DocenteEngine();
         window.docenteEngine = engine;
         let hasGeminiServer = false;
+        let isAiAuthorized = false;
 
-        async function checkAiAvailability() {
-            try {
-                const res = await fetch('/api/status', { credentials: 'same-origin' });
-                if (res.ok) {
-                    const data = await res.json();
-                    hasGeminiServer = Boolean(data.has_gemini);
-                }
-            } catch {
-                hasGeminiServer = false;
-            }
-            if (hasGeminiServer) {
+        function canUseGeminiAi() {
+            return hasGeminiServer && isAiAuthorized;
+        }
+
+        function updateAiBadgeUi() {
+            if (canUseGeminiAi()) {
                 badgeAi.className = "flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 rounded-lg text-xs font-medium text-indigo-700 border border-indigo-200";
+                badgeAi.title = "Gemini AI habilitado exclusivamente para tu cuenta autorizada.";
                 badgeAiDot.className = "w-2 h-2 rounded-full bg-indigo-500 animate-pulse";
                 badgeAiText.innerText = "Gemini AI Conectado";
+                if (chkStudentAi) chkStudentAi.disabled = false;
+            } else if (hasGeminiServer) {
+                badgeAi.className = "flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg text-xs font-medium text-amber-700 border border-amber-200";
+                badgeAi.title = "Iniciá sesión con una cuenta docente autorizada para usar Gemini AI. El Modo Analítico Local sigue 100% disponible y gratuito.";
+                badgeAiDot.className = "w-2 h-2 rounded-full bg-amber-400";
+                badgeAiText.innerText = "Modo Local (IA exclusiva)";
+                if (chkStudentAi) {
+                    chkStudentAi.checked = false;
+                    chkStudentAi.disabled = true;
+                }
             } else {
                 badgeAi.className = "flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg text-xs font-medium text-amber-700 border border-amber-200";
+                badgeAi.title = "Modo Analítico Local activo (sin consumo de API externa).";
                 badgeAiDot.className = "w-2 h-2 rounded-full bg-amber-400";
                 badgeAiText.innerText = "Modo Analítico Local";
+                if (chkStudentAi) {
+                    chkStudentAi.checked = false;
+                    chkStudentAi.disabled = true;
+                }
             }
         }
 
-        async function callGeminiServer(prompt, systemInstruction = '') {
-            if (!hasGeminiServer) return null;
+        async function checkAiAvailability() {
             try {
+                const headers = {};
+                if (window.cloudBridge && typeof window.cloudBridge.getIdToken === 'function') {
+                    const idToken = await window.cloudBridge.getIdToken();
+                    if (idToken) {
+                        headers.Authorization = `Bearer ${idToken}`;
+                    }
+                }
+                const res = await fetch('/api/status', {
+                    credentials: 'same-origin',
+                    headers,
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    hasGeminiServer = Boolean(data.has_gemini);
+                    isAiAuthorized = Boolean(data.ai_authorized);
+                } else {
+                    hasGeminiServer = false;
+                    isAiAuthorized = false;
+                }
+            } catch {
+                hasGeminiServer = false;
+                isAiAuthorized = false;
+            }
+            updateAiBadgeUi();
+        }
+        window.refreshAiStatus = checkAiAvailability;
+
+        async function callGeminiServer(prompt, systemInstruction = '') {
+            if (!canUseGeminiAi()) return null;
+            try {
+                const idToken = window.cloudBridge && typeof window.cloudBridge.getIdToken === 'function'
+                    ? await window.cloudBridge.getIdToken()
+                    : null;
+                if (!idToken) return null;
+
                 const res = await fetch('/api/ai', {
                     method: 'POST',
                     credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`,
+                    },
                     body: JSON.stringify({ prompt, systemInstruction }),
                 });
+                if (res.status === 401 || res.status === 403) {
+                    isAiAuthorized = false;
+                    updateAiBadgeUi();
+                    return null;
+                }
                 if (!res.ok) return null;
                 const data = await res.json();
                 if (data && data.ok && data.text) return data.text;
@@ -2089,7 +2143,7 @@
 
             try {
                 let fullReport = engine.buildStudentIntensificationMarkdown(student);
-                if (useAi && hasGeminiServer) {
+                if (useAi && canUseGeminiAi()) {
                     const aiExtra = await callGeminiServer(
                         `Basándote únicamente en el siguiente informe exacto, redactá un breve apartado adicional llamado "## Sugerencias Pedagógicas para la Intensificación" (máximo 4 puntos concretos y empáticos para el alumno/familia). No inventes notas ni modifiques los datos.\n\n${fullReport}`,
                         'Sos un docente orientador pedagógico claro, respetuoso y preciso.'
@@ -2169,7 +2223,7 @@
                 const studentsList = engine.getStudentsList(colegio, curso);
                 let reportText = null;
 
-                if (hasGeminiServer) {
+                if (canUseGeminiAi()) {
                     const filtroTxt = `Colegio: ${colegio || 'Todos'} | Curso: ${curso || 'Todos'}`;
                     const prompt = `Generá un informe pedagógico institucional y un listado claro de intensificación por alumno basado en estos datos exactos (${filtroTxt}):\n\n` +
                         `RESUMEN:\n- Total Alumnos: ${stats.total_alumnos}\n- Unidades Evaluadas (${stats.total_unidades}): ${stats.unidades.join(', ')}\n` +
@@ -2268,7 +2322,7 @@
             let answer = null;
             if (engine.students.length === 0) {
                 answer = "Actualmente no hay datos cargados. Subí tu planilla CSV o Excel primero.";
-            } else if (hasGeminiServer) {
+            } else if (canUseGeminiAi()) {
                 const stats = engine.getSummaryStats(colegio, curso);
                 const studentsList = engine.getStudentsList(colegio, curso);
                 const filtroTxt = `Colegio: ${colegio || 'Todos'} | Curso: ${curso || 'Todos'}`;
@@ -2883,6 +2937,14 @@
 
         window.cloudBridge = {
             uid: null,
+            async getIdToken() {
+                if (!auth || !auth.currentUser) return null;
+                try {
+                    return await auth.currentUser.getIdToken();
+                } catch {
+                    return null;
+                }
+            },
             async syncAfterMutation(coursesSnapshot, mode = 'replace') {
                 if (!this.uid) return;
                 syncChain = syncChain.then(() => saveCoursesSnapshotToFirestore(coursesSnapshot, mode));
@@ -2945,6 +3007,9 @@
                     const eng = window.docenteEngine;
                     if (user) {
                         window.cloudBridge.uid = user.uid;
+                        if (typeof window.refreshAiStatus === 'function') {
+                            await window.refreshAiStatus();
+                        }
                         authSignedOutEl?.classList.add('hidden');
                         authSignedInEl?.classList.remove('hidden');
                         authSignedInEl?.classList.add('flex');
@@ -2982,6 +3047,9 @@
                     } else {
                         const wasSignedIn = Boolean(window.cloudBridge.uid);
                         window.cloudBridge.uid = null;
+                        if (typeof window.refreshAiStatus === 'function') {
+                            await window.refreshAiStatus();
+                        }
                         authSignedInEl?.classList.add('hidden');
                         authSignedInEl?.classList.remove('flex');
                         authSignedOutEl?.classList.remove('hidden');
