@@ -58,7 +58,7 @@ service cloud.firestore {
 
     function isValidStudent(data, userId, courseId) {
       return data.keys().hasAll(['ownerId', 'courseId', 'colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'createdAt', 'updatedAt']) &&
-             data.keys().hasOnly(['ownerId', 'courseId', 'colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['ownerId', 'courseId', 'colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'trayectoria', 'createdAt', 'updatedAt']) &&
              data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid && data.ownerId.size() <= 128 &&
              data.courseId is string && data.courseId == courseId && data.courseId.size() <= 128 &&
              data.colegio is string && data.colegio.size() >= 1 && data.colegio.size() <= 160 &&
@@ -68,6 +68,7 @@ service cloud.firestore {
              (data.nombre.size() > 0 || data.apellido.size() > 0) &&
              data.grades is map && data.grades.size() <= 30 &&
              data.extras is map && data.extras.size() <= 20 &&
+             (!('trayectoria' in data) || (data.trayectoria is map && data.trayectoria.size() <= 10)) &&
              data.createdAt is timestamp &&
              data.updatedAt is timestamp;
     }
@@ -147,7 +148,7 @@ service cloud.firestore {
             incoming().updatedAt == request.time &&
             get(/databases/$(database)/documents/users/$(userId)/courses/$(courseId)).data.ownerId == request.auth.uid &&
             (
-              incoming().diff(existing()).affectedKeys().hasOnly(['colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'updatedAt'])
+              incoming().diff(existing()).affectedKeys().hasOnly(['colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'trayectoria', 'updatedAt'])
             );
 
           allow delete: if isValidId(userId) &&

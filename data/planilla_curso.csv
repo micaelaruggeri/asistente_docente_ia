@@ -1,13 +1,13 @@
-colegio,curso,nombre,apellido,Unidad 1 - Números (Examen),Unidad 1 - Números (Recu),Unidad 2 - Ecuaciones (Examen),Unidad 2 - Ecuaciones (Recu),Unidad 3 - Funciones (Examen),Unidad 3 - Funciones (Recu),Unidad 4 - Geometría (Examen),Unidad 4 - Geometría (Recu)
-Instituto San Martín,3° A,Juan,Pérez,8.5,,9.0,,7.5,,8.0,
-Instituto San Martín,3° A,María,Gómez,7.0,,5.5,7.5,8.0,,7.0,
-Instituto San Martín,3° A,Lucas,Martínez,4.0,5.5,5.0,6.0,7.5,,4.5,5.0
-Instituto San Martín,3° A,Valentina,Rodríguez,9.0,,10.0,,9.5,,9.0,
-Instituto San Martín,3° A,Mateo,López,6.0,7.0,4.0,5.0,6.5,,8.0,
-Instituto San Martín,3° B,Sofía,Díaz,10.0,,9.5,,9.0,,10.0,
-Instituto San Martín,3° B,Benjamín,Fernández,3.5,4.0,4.0,5.5,5.0,6.0,3.0,
-Instituto San Martín,3° B,Camila,Sánchez,7.5,,6.0,6.5,8.0,,7.0,
-Instituto San Martín,3° B,Tomás,Romero,,7.5,7.0,,5.0,5.5,6.5,6.0
-Escuela Belgrano,4° A,Martina,Álvarez,5.0,4.5,3.0,4.0,4.5,5.0,6.0,6.5
-Escuela Belgrano,4° A,Joaquín,Silva,8.0,,7.5,,8.5,,7.0,
-Escuela Belgrano,4° A,Emma,Torres,6.5,8.0,7.0,,5.5,6.0,8.5,
+colegio,curso,nombre,apellido,Unidad 1 - Números (Examen),Unidad 1 - Números (Recu),Unidad 2 - Ecuaciones (Examen),Unidad 2 - Ecuaciones (Recu),Unidad 3 - Funciones (Examen),Unidad 3 - Funciones (Recu),Unidad 4 - Geometría (Examen),Unidad 4 - Geometría (Recu),1° Informe Preliminar (TEA/TEP/TED),1° Cuatrimestre,1° Informe Cuatrimestre (TEA/TEP/TED),2° Informe Preliminar (TEA/TEP/TED),2° Cuatrimestre,2° Informe Cuatrimestre (TEA/TEP/TED),Nota Final
+Instituto San Martín,3° A,Juan,Pérez,8.5,,9.0,,7.5,,8.0,,,,,,,
+Instituto San Martín,3° A,María,Gómez,7.0,,5.5,7.5,8.0,,7.0,,,,,,,
+Instituto San Martín,3° A,Lucas,Martínez,4.0,5.5,5.0,6.0,7.5,,4.5,5.0,,,,,,,
+Instituto San Martín,3° A,Valentina,Rodríguez,9.0,,10.0,,9.5,,9.0,,,,,,,
+Instituto San Martín,3° A,Mateo,López,6.0,7.0,4.0,5.0,6.5,,8.0,,,,,,,
+Instituto San Martín,3° B,Sofía,Díaz,10.0,,9.5,,9.0,,10.0,,,,,,,
+Instituto San Martín,3° B,Benjamín,Fernández,3.5,4.0,4.0,5.5,5.0,6.0,3.0,,,,,,,
+Instituto San Martín,3° B,Camila,Sánchez,7.5,,6.0,6.5,8.0,,7.0,,,,,,,
+Instituto San Martín,3° B,Tomás,Romero,,7.5,7.0,,5.0,5.5,6.5,6.0,,,,,,,
+Escuela Belgrano,4° A,Martina,Álvarez,5.0,4.5,3.0,4.0,4.5,5.0,6.0,6.5,,,,,,,
+Escuela Belgrano,4° A,Joaquín,Silva,8.0,,7.5,,8.5,,7.0,,,,,,,
+Escuela Belgrano,4° A,Emma,Torres,6.5,8.0,7.0,,5.5,6.0,8.5,,,,,,,

@@ -118,6 +118,10 @@
           "type": "object",
           "description": "Mapa de columnas extra personalizadas: { columna: valor }."
         },
+        "trayectoria": {
+          "type": "object",
+          "description": "Informes preliminares y de cierre cuatrimestral (TEA/TEP/TED), notas de 1° y 2° cuatrimestre y nota final: { preliminar1, cuatrimestre1, informe1, preliminar2, cuatrimestre2, informe2, notaFinal }."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",

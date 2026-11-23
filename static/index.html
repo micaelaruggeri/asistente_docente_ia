@@ -171,7 +171,7 @@
                         </div>
                         <div>
                             <p class="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors" id="planilla-file-label">Hacé clic o arrastrá 1 o varios archivos (Excel multipestaña o CSV)</p>
-                            <p class="text-[11px] text-slate-400 mt-0.5">Cada pestaña o archivo puede tener <strong>sus propias unidades</strong>: <strong>colegio, curso, nombre, apellido</strong> + pares <strong>(Examen)</strong> y <strong>(Recu)</strong></p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Cada pestaña o archivo puede tener <strong>sus propias unidades</strong>: <strong>colegio, curso, nombre, apellido</strong>, pares <strong>(Examen)/(Recu)</strong> y <strong>2 Informes Preliminares + 2 Cuatrimestres + 2 Informes de Cierre + Nota Final</strong></p>
                         </div>
                     </div>
 
@@ -276,7 +276,7 @@
                     <!-- Barra inferior de guardado y descarga -->
                     <div class="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
                         <div class="text-[11px] text-slate-500">
-                            Aprueba cada unidad con <strong class="text-slate-700 font-mono tabular-nums">≥ 6.75</strong> (equivale a 7). Dejá vacío si estuvo ausente.
+                            Unidades: aprueba con <strong class="text-slate-700 font-mono tabular-nums">≥ 6.75</strong>. <strong>Nota Final</strong> se habilita y sugiere el promedio solo con <strong>1° y 2° Cuatrimestre ≥ 7</strong> (editable).
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <select id="direct-save-mode" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:border-indigo-400">
@@ -374,7 +374,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div class="flex items-center gap-2">
                         <i data-lucide="table-2" class="w-5 h-5 text-slate-700"></i>
-                        <h2 class="font-display font-semibold text-base text-slate-900">Matriz de Unidades (Examen / Recu)</h2>
+                        <h2 class="font-display font-semibold text-base text-slate-900">Matriz de Unidades, Trayectoria y Notas</h2>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div class="relative">
@@ -913,6 +913,60 @@
             }
         }
 
+        function bimestreSelectClasses(val) {
+            const v = String(val || '').toUpperCase();
+            if (v === 'TEA') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
+            if (v === 'TEP') return 'border-amber-300 bg-amber-50 text-amber-800';
+            if (v === 'TED') return 'border-rose-300 bg-rose-50 text-rose-800';
+            return 'border-slate-200 bg-white text-slate-500';
+        }
+
+        function cuatrimestreInputClasses(numVal) {
+            if (numVal === null || numVal === undefined) return 'border-slate-200 bg-white text-slate-700';
+            return numVal >= 7
+                ? 'border-emerald-300 bg-emerald-50/50 text-emerald-900 font-semibold'
+                : 'border-rose-300 bg-rose-50/50 text-rose-900 font-semibold';
+        }
+
+        async function handleUpdateStudentTrayectoria(studentId, patch) {
+            const prev = engine.getStudentById(studentId);
+            const prevHadFinal = Boolean(prev && prev.trayectoria && prev.trayectoria.notaFinal !== null);
+
+            const res = engine.updateStudentTrayectoria(studentId, patch);
+            if (!res || !res.ok) return;
+
+            const colegio = filterColegio.value && filterColegio.value !== 'Todos' ? filterColegio.value : null;
+            const curso = filterCurso.value && filterCurso.value !== 'Todos' ? filterCurso.value : null;
+            const students = engine.getStudentsList(colegio, curso);
+            const { units: viewUnits, uniform: uniformUnits } = engine.unitsForStudents(students);
+            const extraColumns = engine.getExtraColumnsForStudents(students);
+            cachedStudents = students;
+            cachedUnits = viewUnits;
+            cachedExtraColumns = extraColumns;
+            cachedUniformUnits = uniformUnits;
+
+            populateStudentReportSelect(cachedStudents);
+            const term = (tableSearch.value || '').toLowerCase().trim();
+            const tableFiltered = term
+                ? cachedStudents.filter(s =>
+                    s.nombre_completo.toLowerCase().includes(term) ||
+                    s.curso.toLowerCase().includes(term) ||
+                    s.colegio.toLowerCase().includes(term))
+                : cachedStudents;
+            renderStudentsTable(tableFiltered, cachedUnits, cachedUniformUnits, cachedExtraColumns);
+
+            const tr = res.student.trayectoria || {};
+            if (prevHadFinal && !tr.can_close_final) {
+                showToast(`Nota Final de ${res.student.apellido} liberada: requiere ambos cuatrimestres ≥ 7.`, 'info');
+            } else {
+                showToast(`Trayectoria de ${res.student.apellido}, ${res.student.nombre} actualizada.`, 'success');
+            }
+
+            if (window.cloudBridge && res.courseSnapshot && res.studentRow) {
+                await window.cloudBridge.syncStudentTrayectoria(res.courseSnapshot, res.studentRow, res.courses_snapshot);
+            }
+        }
+
         function renderStudentsTable(students, units, uniformUnits = true, extraColumns = []) {
             // Si todos los cursos visibles comparten las mismas unidades -> matriz por columnas.
             // Si hay cursos con distintas unidades -> columna flexible con las unidades propias de cada alumno.
@@ -930,6 +984,13 @@
                 headHtml += `<th class="py-3 px-3 text-left" title="${escapeHtml(exCol)}">${escapeHtml(exCol)}</th>`;
             });
             headHtml += `
+                <th class="py-3 px-2 text-center bg-sky-50/60 text-sky-900" title="1° Informe Preliminar (TEA / TEP / TED)">1° Prelim.</th>
+                <th class="py-3 px-2 text-center bg-sky-50/60 text-sky-900" title="Nota numérica 1° Cuatrimestre">1° Cuat.</th>
+                <th class="py-3 px-2 text-center bg-sky-50/60 text-sky-900" title="Informe de cierre del 1° Cuatrimestre (TEA / TEP / TED)">Inf. 1° C.</th>
+                <th class="py-3 px-2 text-center bg-sky-50/60 text-sky-900" title="2° Informe Preliminar (TEA / TEP / TED)">2° Prelim.</th>
+                <th class="py-3 px-2 text-center bg-sky-50/60 text-sky-900" title="Nota numérica 2° Cuatrimestre">2° Cuat.</th>
+                <th class="py-3 px-2 text-center bg-sky-50/60 text-sky-900" title="Informe de cierre del 2° Cuatrimestre (TEA / TEP / TED)">Inf. 2° C.</th>
+                <th class="py-3 px-2 text-center bg-sky-50/60 text-sky-900" title="Sugerida por promedio y editable cuando 1° y 2° Cuatrimestre ≥ 7">Nota Final</th>
                 <th class="py-3 px-3 text-center">Prom.</th>
                 <th class="py-3 px-3 text-center">Estado</th>
                 <th class="py-3 px-3 text-center">Reporte</th>
@@ -938,7 +999,7 @@
 
             studentsTableBody.innerHTML = "";
             if (students.length === 0) {
-                const colSpan = (uniformUnits ? units.length + 5 : 6) + extraColumns.length;
+                const colSpan = (uniformUnits ? units.length + 12 : 13) + extraColumns.length;
                 studentsTableBody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-8 text-slate-400">No se encontraron alumnos para los filtros actuales.</td></tr>`;
                 return;
             }
@@ -1015,7 +1076,43 @@
                     cellsHtml += `<td class="py-2.5 px-3 text-xs text-slate-600 max-w-[180px] truncate" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
                 });
 
+                const tr = s.trayectoria || { preliminar1: '', cuatrimestre1: null, informe1: '', preliminar2: '', cuatrimestre2: null, informe2: '', can_close_final: false, suggested_final: null, notaFinal: null };
+                const mkOpts = (curVal) => ['', 'TEA', 'TEP', 'TED'].map(opt => `<option value="${opt}" ${curVal === opt ? 'selected' : ''}>${opt || '—'}</option>`).join('');
+                const c1Val = tr.cuatrimestre1 !== null && tr.cuatrimestre1 !== undefined ? String(tr.cuatrimestre1) : '';
+                const c2Val = tr.cuatrimestre2 !== null && tr.cuatrimestre2 !== undefined ? String(tr.cuatrimestre2) : '';
+                const nfVal = tr.can_close_final && tr.notaFinal !== null && tr.notaFinal !== undefined ? String(tr.notaFinal) : '';
+                const nfClasses = !tr.can_close_final
+                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : (nfVal !== ''
+                        ? (tr.notaFinal >= 7 ? 'border-emerald-400 bg-emerald-50 text-emerald-900 font-bold' : 'border-rose-300 bg-rose-50 text-rose-900 font-bold')
+                        : 'border-indigo-300 bg-indigo-50/40 text-slate-800 font-semibold');
+                const showResetSuggest = tr.can_close_final && tr.suggested_final !== null && tr.notaFinal !== tr.suggested_final;
+
                 cellsHtml += `
+                    <td class="py-2 px-1 text-center bg-sky-50/20">
+                        <select class="tbl-traj-bim px-1.5 py-1 text-[11px] font-semibold border rounded-md outline-none cursor-pointer ${bimestreSelectClasses(tr.preliminar1)}" data-student-id="${s.id_alumno}" data-field="preliminar1" title="1° Informe Preliminar">${mkOpts(tr.preliminar1)}</select>
+                    </td>
+                    <td class="py-2 px-1 text-center bg-sky-50/20">
+                        <input type="text" inputmode="decimal" value="${escapeHtml(c1Val)}" placeholder="—" class="tbl-traj-num w-14 px-1.5 py-1 text-center font-mono tabular-nums text-[11px] border rounded-md outline-none focus:border-indigo-500 ${cuatrimestreInputClasses(tr.cuatrimestre1)}" data-student-id="${s.id_alumno}" data-field="cuatrimestre1" title="Nota 1° Cuatrimestre">
+                    </td>
+                    <td class="py-2 px-1 text-center bg-sky-50/20">
+                        <select class="tbl-traj-bim px-1.5 py-1 text-[11px] font-semibold border rounded-md outline-none cursor-pointer ${bimestreSelectClasses(tr.informe1)}" data-student-id="${s.id_alumno}" data-field="informe1" title="Informe cierre 1° Cuatrimestre">${mkOpts(tr.informe1)}</select>
+                    </td>
+                    <td class="py-2 px-1 text-center bg-sky-50/20">
+                        <select class="tbl-traj-bim px-1.5 py-1 text-[11px] font-semibold border rounded-md outline-none cursor-pointer ${bimestreSelectClasses(tr.preliminar2)}" data-student-id="${s.id_alumno}" data-field="preliminar2" title="2° Informe Preliminar">${mkOpts(tr.preliminar2)}</select>
+                    </td>
+                    <td class="py-2 px-1 text-center bg-sky-50/20">
+                        <input type="text" inputmode="decimal" value="${escapeHtml(c2Val)}" placeholder="—" class="tbl-traj-num w-14 px-1.5 py-1 text-center font-mono tabular-nums text-[11px] border rounded-md outline-none focus:border-indigo-500 ${cuatrimestreInputClasses(tr.cuatrimestre2)}" data-student-id="${s.id_alumno}" data-field="cuatrimestre2" title="Nota 2° Cuatrimestre">
+                    </td>
+                    <td class="py-2 px-1 text-center bg-sky-50/20">
+                        <select class="tbl-traj-bim px-1.5 py-1 text-[11px] font-semibold border rounded-md outline-none cursor-pointer ${bimestreSelectClasses(tr.informe2)}" data-student-id="${s.id_alumno}" data-field="informe2" title="Informe cierre 2° Cuatrimestre">${mkOpts(tr.informe2)}</select>
+                    </td>
+                    <td class="py-2 px-1 text-center bg-sky-50/20">
+                        <div class="inline-flex flex-col items-center gap-0.5">
+                            <input type="text" inputmode="decimal" value="${escapeHtml(nfVal)}" placeholder="${tr.can_close_final ? '—' : 'Bloq.'}" ${tr.can_close_final ? '' : 'disabled'} class="tbl-traj-final w-14 px-1.5 py-1 text-center font-mono tabular-nums text-[11px] border rounded-md outline-none focus:border-indigo-500 ${nfClasses}" data-student-id="${s.id_alumno}" data-field="notaFinal" title="${tr.can_close_final ? `Sugerida: ${tr.suggested_final} (editable)` : 'Bloqueada: requiere 1° y 2° Cuatrimestre ≥ 7'}">
+                            ${showResetSuggest ? `<button type="button" class="tbl-traj-suggest text-[9px] text-indigo-600 hover:text-indigo-800 underline font-medium" data-student-id="${s.id_alumno}" data-suggested="${tr.suggested_final}" title="Usar promedio sugerido">Sug: ${tr.suggested_final}</button>` : ''}
+                        </div>
+                    </td>
                     <td class="py-2.5 px-3 text-center font-mono tabular-nums font-bold text-slate-900">${s.promedio}</td>
                     <td class="py-2.5 px-3 text-center">
                         <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${estadoClass}">
@@ -1035,6 +1132,26 @@
                 row.querySelectorAll('.chk-table-intensif').forEach(chk => {
                     chk.addEventListener('change', (e) => {
                         handleToggleUnitIntensified(chk.dataset.studentId, chk.dataset.unit, e.target.checked);
+                    });
+                });
+                row.querySelectorAll('.tbl-traj-bim').forEach(sel => {
+                    sel.addEventListener('change', (e) => {
+                        handleUpdateStudentTrayectoria(sel.dataset.studentId, { [sel.dataset.field]: e.target.value });
+                    });
+                });
+                row.querySelectorAll('.tbl-traj-num').forEach(inp => {
+                    inp.addEventListener('change', (e) => {
+                        handleUpdateStudentTrayectoria(inp.dataset.studentId, { [inp.dataset.field]: e.target.value });
+                    });
+                });
+                row.querySelectorAll('.tbl-traj-final').forEach(inp => {
+                    inp.addEventListener('change', (e) => {
+                        handleUpdateStudentTrayectoria(inp.dataset.studentId, { notaFinal: e.target.value });
+                    });
+                });
+                row.querySelectorAll('.tbl-traj-suggest').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        handleUpdateStudentTrayectoria(btn.dataset.studentId, { notaFinal: btn.dataset.suggested });
                     });
                 });
                 studentsTableBody.appendChild(row);
@@ -1259,6 +1376,15 @@
                 nombre: '',
                 apellido: '',
                 grades,
+                trayectoria: {
+                    preliminar1: '',
+                    cuatrimestre1: '',
+                    informe1: '',
+                    preliminar2: '',
+                    cuatrimestre2: '',
+                    informe2: '',
+                    notaFinal: '',
+                },
                 extras,
             };
         }
@@ -1309,12 +1435,23 @@
                     sourceExtras.forEach(ex => {
                         extras[ex] = (s.extras && s.extras[ex] !== undefined) ? String(s.extras[ex]) : '';
                     });
+                    const tr = s.trayectoria || {};
                     return {
                         colegio: s.colegio || '',
                         curso: s.curso || '',
                         nombre: s.nombre || '',
                         apellido: s.apellido || '',
                         grades,
+                        trayectoria: {
+                            preliminar1: tr.preliminar1 || '',
+                            cuatrimestre1: tr.cuatrimestre1 !== null && tr.cuatrimestre1 !== undefined ? String(tr.cuatrimestre1) : '',
+                            informe1: tr.informe1 || '',
+                            preliminar2: tr.preliminar2 || '',
+                            cuatrimestre2: tr.cuatrimestre2 !== null && tr.cuatrimestre2 !== undefined ? String(tr.cuatrimestre2) : '',
+                            informe2: tr.informe2 || '',
+                            notaFinal: (tr.can_close_final && tr.notaFinal !== null && tr.notaFinal !== undefined) ? String(tr.notaFinal) : '',
+                            _lastSuggested: tr.suggested_final ?? null,
+                        },
                         extras,
                     };
                 }),
@@ -1353,6 +1490,10 @@
                 </th>`;
             });
 
+            headRow1 += `<th colspan="7" class="py-1.5 px-2 border-b border-r border-slate-200 text-center bg-sky-50/70 text-sky-900">
+                <span class="font-bold normal-case text-[11px]">Trayectoria (Preliminares / Cuatrimestres / Cierre / Final)</span>
+            </th>`;
+
             directState.extraColumns.forEach((ex, exIdx) => {
                 headRow1 += `<th rowspan="2" class="py-1.5 px-2 border-b border-r border-slate-200 bg-amber-50/60 text-amber-900 min-w-[130px]">
                     <div class="flex items-center justify-between gap-1.5">
@@ -1374,6 +1515,14 @@
                     <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[58px]">Recu</th>
                     <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[48px]" title="Tildar si ya intensificó">Int. ✓</th>`;
             });
+            headRow2 += `
+                <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[72px]" title="1° Informe Preliminar (TEA / TEP / TED)">1° Prelim.</th>
+                <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[60px]" title="Nota numérica 1° Cuatrimestre">1° Cuat.</th>
+                <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[72px]" title="Informe cierre 1° Cuatrimestre (TEA / TEP / TED)">Inf. 1° C.</th>
+                <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[72px]" title="2° Informe Preliminar (TEA / TEP / TED)">2° Prelim.</th>
+                <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[60px]" title="Nota numérica 2° Cuatrimestre">2° Cuat.</th>
+                <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[72px]" title="Informe cierre 2° Cuatrimestre (TEA / TEP / TED)">Inf. 2° C.</th>
+                <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[66px]" title="Sugerida y editable con 1° y 2° Cuatrimestre >= 7">Final</th>`;
             headRow2 += `</tr>`;
 
             directGridHead.innerHTML = headRow1 + headRow2;
@@ -1442,6 +1591,49 @@
                             <input type="checkbox" data-unit="${escapeHtml(uName)}" data-row="${rIdx}" class="direct-intensif-chk w-3.5 h-3.5 rounded accent-teal-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" ${(!aprobPorNota && slot.intensificado) ? 'checked' : ''} ${aprobPorNota ? 'disabled title="Ya aprobada por nota"' : 'title="Marcar si ya intensificó"'}>
                         </td>`;
                 });
+
+                if (!row.trayectoria) {
+                    row.trayectoria = { preliminar1: '', cuatrimestre1: '', informe1: '', preliminar2: '', cuatrimestre2: '', informe2: '', notaFinal: '' };
+                }
+                const trData = row.trayectoria;
+                const c1Num = parseGradeLocal(trData.cuatrimestre1);
+                const c2Num = parseGradeLocal(trData.cuatrimestre2);
+                const canCloseFinal = c1Num !== null && c2Num !== null && c1Num >= 7 && c2Num >= 7;
+                const suggestedFinal = canCloseFinal ? Math.round(((c1Num + c2Num) / 2) * 100) / 100 : null;
+                if (!canCloseFinal && trData.notaFinal) {
+                    trData.notaFinal = '';
+                } else if (canCloseFinal && !trData.notaFinal && !trData.notaFinalCleared) {
+                    trData.notaFinal = String(suggestedFinal);
+                }
+                trData._lastSuggested = suggestedFinal;
+                const nfNum = canCloseFinal ? parseGradeLocal(trData.notaFinal) : null;
+                const mkDirectOpts = (curVal) => ['', 'TEA', 'TEP', 'TED'].map(opt => `<option value="${opt}" ${curVal === opt ? 'selected' : ''}>${opt || '—'}</option>`).join('');
+                const finalInpCls = !canCloseFinal
+                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : (nfNum === null ? 'border-indigo-300 bg-indigo-50/30 text-slate-800' : (nfNum >= 7 ? 'border-emerald-400 bg-emerald-50 text-emerald-900 font-bold' : 'border-rose-300 bg-rose-50 text-rose-900 font-bold'));
+
+                html += `
+                    <td class="p-1 border-r border-slate-100 text-center bg-sky-50/20">
+                        <select data-traj="preliminar1" data-row="${rIdx}" class="direct-traj-bim px-1.5 py-1 text-xs font-semibold border rounded-md focus:border-indigo-500 outline-none ${bimestreSelectClasses(trData.preliminar1)}">${mkDirectOpts(trData.preliminar1)}</select>
+                    </td>
+                    <td class="p-1 border-r border-slate-100 text-center bg-sky-50/20">
+                        <input type="text" inputmode="decimal" data-traj="cuatrimestre1" data-row="${rIdx}" value="${escapeHtml(trData.cuatrimestre1 ?? '')}" placeholder="—" class="direct-traj-num w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${cuatrimestreInputClasses(c1Num)}">
+                    </td>
+                    <td class="p-1 border-r border-slate-100 text-center bg-sky-50/20">
+                        <select data-traj="informe1" data-row="${rIdx}" class="direct-traj-bim px-1.5 py-1 text-xs font-semibold border rounded-md focus:border-indigo-500 outline-none ${bimestreSelectClasses(trData.informe1)}">${mkDirectOpts(trData.informe1)}</select>
+                    </td>
+                    <td class="p-1 border-r border-slate-100 text-center bg-sky-50/20">
+                        <select data-traj="preliminar2" data-row="${rIdx}" class="direct-traj-bim px-1.5 py-1 text-xs font-semibold border rounded-md focus:border-indigo-500 outline-none ${bimestreSelectClasses(trData.preliminar2)}">${mkDirectOpts(trData.preliminar2)}</select>
+                    </td>
+                    <td class="p-1 border-r border-slate-100 text-center bg-sky-50/20">
+                        <input type="text" inputmode="decimal" data-traj="cuatrimestre2" data-row="${rIdx}" value="${escapeHtml(trData.cuatrimestre2 ?? '')}" placeholder="—" class="direct-traj-num w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${cuatrimestreInputClasses(c2Num)}">
+                    </td>
+                    <td class="p-1 border-r border-slate-100 text-center bg-sky-50/20">
+                        <select data-traj="informe2" data-row="${rIdx}" class="direct-traj-bim px-1.5 py-1 text-xs font-semibold border rounded-md focus:border-indigo-500 outline-none ${bimestreSelectClasses(trData.informe2)}">${mkDirectOpts(trData.informe2)}</select>
+                    </td>
+                    <td class="p-1 border-r border-slate-100 text-center bg-sky-50/20">
+                        <input type="text" inputmode="decimal" data-traj="notaFinal" data-row="${rIdx}" value="${canCloseFinal ? escapeHtml(trData.notaFinal ?? '') : ''}" placeholder="${canCloseFinal ? '—' : 'Bloq.'}" ${canCloseFinal ? '' : 'disabled'} title="${canCloseFinal ? `Nota Final sugerida: ${suggestedFinal} (editable)` : 'Bloqueada: requiere 1° y 2° Cuatrimestre ≥ 7'}" class="direct-traj-final w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${finalInpCls}">
+                    </td>`;
 
                 directState.extraColumns.forEach(exName => {
                     const exVal = (row.extras && row.extras[exName]) || '';
@@ -1527,6 +1719,83 @@
                         badge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.cls}`;
                         badge.textContent = st.text;
                     }
+                });
+            });
+
+            directGridBody.querySelectorAll('.direct-traj-bim').forEach(sel => {
+                sel.addEventListener('change', () => {
+                    const rIdx = Number(sel.dataset.row);
+                    const field = sel.dataset.traj;
+                    if (!directState.rows[rIdx].trayectoria) {
+                        directState.rows[rIdx].trayectoria = { preliminar1: '', cuatrimestre1: '', informe1: '', preliminar2: '', cuatrimestre2: '', informe2: '', notaFinal: '' };
+                    }
+                    directState.rows[rIdx].trayectoria[field] = sel.value;
+                    sel.className = `direct-traj-bim px-1.5 py-1 text-xs font-semibold border rounded-md focus:border-indigo-500 outline-none ${bimestreSelectClasses(sel.value)}`;
+                });
+            });
+
+            directGridBody.querySelectorAll('.direct-traj-num').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const rIdx = Number(inp.dataset.row);
+                    const field = inp.dataset.traj;
+                    if (!directState.rows[rIdx].trayectoria) {
+                        directState.rows[rIdx].trayectoria = { preliminar1: '', cuatrimestre1: '', informe1: '', preliminar2: '', cuatrimestre2: '', informe2: '', notaFinal: '' };
+                    }
+                    const trObj = directState.rows[rIdx].trayectoria;
+                    trObj[field] = inp.value;
+                    const num = parseGradeLocal(inp.value);
+                    inp.className = `direct-traj-num w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${cuatrimestreInputClasses(num)}`;
+
+                    const c1 = parseGradeLocal(trObj.cuatrimestre1);
+                    const c2 = parseGradeLocal(trObj.cuatrimestre2);
+                    const canClose = c1 !== null && c2 !== null && c1 >= 7 && c2 >= 7;
+                    const rowEl = inp.closest('tr');
+                    const finalInp = rowEl ? rowEl.querySelector('.direct-traj-final') : null;
+                    if (finalInp) {
+                        finalInp.disabled = !canClose;
+                        if (!canClose) {
+                            trObj.notaFinal = '';
+                            trObj.notaFinalCleared = false;
+                            trObj._lastSuggested = null;
+                            finalInp.value = '';
+                            finalInp.placeholder = 'Bloq.';
+                            finalInp.title = 'Bloqueada: requiere 1° y 2° Cuatrimestre ≥ 7';
+                            finalInp.className = 'direct-traj-final w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed';
+                        } else {
+                            const suggested = Math.round(((c1 + c2) / 2) * 100) / 100;
+                            const curFinalNum = parseGradeLocal(finalInp.value);
+                            if (finalInp.value.trim() === '' || (trObj._lastSuggested !== null && trObj._lastSuggested !== undefined && curFinalNum === trObj._lastSuggested)) {
+                                trObj.notaFinal = String(suggested);
+                                trObj.notaFinalCleared = false;
+                                finalInp.value = String(suggested);
+                            }
+                            trObj._lastSuggested = suggested;
+                            finalInp.placeholder = '—';
+                            finalInp.title = `Nota Final sugerida: ${suggested} (editable)`;
+                            const nfN = parseGradeLocal(finalInp.value);
+                            const nfCls = nfN === null
+                                ? 'border-indigo-300 bg-indigo-50/30 text-slate-800'
+                                : (nfN >= 7 ? 'border-emerald-400 bg-emerald-50 text-emerald-900 font-bold' : 'border-rose-300 bg-rose-50 text-rose-900 font-bold');
+                            finalInp.className = `direct-traj-final w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${nfCls}`;
+                        }
+                    }
+                });
+            });
+
+            directGridBody.querySelectorAll('.direct-traj-final').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const rIdx = Number(inp.dataset.row);
+                    if (!directState.rows[rIdx].trayectoria) {
+                        directState.rows[rIdx].trayectoria = { preliminar1: '', cuatrimestre1: '', informe1: '', preliminar2: '', cuatrimestre2: '', informe2: '', notaFinal: '' };
+                    }
+                    const trObj = directState.rows[rIdx].trayectoria;
+                    trObj.notaFinal = inp.value;
+                    const nfN = parseGradeLocal(inp.value);
+                    trObj.notaFinalCleared = nfN === null;
+                    const nfCls = nfN === null
+                        ? 'border-indigo-300 bg-indigo-50/30 text-slate-800'
+                        : (nfN >= 7 ? 'border-emerald-400 bg-emerald-50 text-emerald-900 font-bold' : 'border-rose-300 bg-rose-50 text-rose-900 font-bold');
+                    inp.className = `direct-traj-final w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${nfCls}`;
                 });
             });
 
@@ -2010,6 +2279,8 @@
                     "- Cada unidad tiene dos instancias: Examen y Recuperatorio.\n" +
                     "- Una unidad se aprueba con nota >= 6.75 (6.75 se considera 7) en el Examen o >= 6.75 en el Recuperatorio.\n" +
                     "- Notas de 6.50 o menores (< 6.75) NO aprueban: debe INTENSIFICAR esa unidad.\n" +
+                    "- Informes preliminares (1° y 2°) e informes de cierre cuatrimestral (1° y 2°): TEA (Trayectoria Educativa Avanzada), TEP (En Proceso), TED (Discontinua) o sin cargar.\n" +
+                    "- Notas de 1° y 2° Cuatrimestre son numéricas; la Nota Final solo se habilita (y viene sugerida por promedio, editable) cuando ambos cuatrimestres son >= 7.\n" +
                     "Basate únicamente en los datos provistos, no inventes notas, respondé en Markdown prolijo.";
                 const fullPrompt =
                     `INFORMACIÓN DE LA PLANILLA (${filtroTxt}):\n` +
@@ -2222,6 +2493,35 @@
                     cleanExtras[exName] = val;
                 });
 
+                const toCleanNum = (v) => {
+                    if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v * 100) / 100;
+                    if (typeof v === 'string') {
+                        const s = v.trim().replace(',', '.');
+                        if (s) {
+                            const n = Number(s);
+                            if (Number.isFinite(n)) return Math.round(n * 100) / 100;
+                        }
+                    }
+                    return null;
+                };
+                const toCleanBim = (v) => {
+                    const s = String(v || '').trim().toUpperCase();
+                    return (s === 'TEA' || s === 'TEP' || s === 'TED') ? s : '';
+                };
+                const rawTr = r.trayectoria || {};
+                const c1 = toCleanNum(rawTr.cuatrimestre1);
+                const c2 = toCleanNum(rawTr.cuatrimestre2);
+                const canCloseFinal = c1 !== null && c2 !== null && c1 >= 7 && c2 >= 7;
+                const cleanTrayectoria = {
+                    preliminar1: toCleanBim(rawTr.preliminar1),
+                    cuatrimestre1: c1,
+                    informe1: toCleanBim(rawTr.informe1 !== undefined ? rawTr.informe1 : rawTr.bimestre1),
+                    preliminar2: toCleanBim(rawTr.preliminar2),
+                    cuatrimestre2: c2,
+                    informe2: toCleanBim(rawTr.informe2 !== undefined ? rawTr.informe2 : rawTr.bimestre2),
+                    notaFinal: canCloseFinal ? toCleanNum(rawTr.notaFinal) : null,
+                };
+
                 return {
                     studentId,
                     payload: {
@@ -2233,6 +2533,7 @@
                         apellido,
                         grades: cleanGrades,
                         extras: cleanExtras,
+                        trayectoria: cleanTrayectoria,
                     }
                 };
             });
@@ -2348,6 +2649,7 @@
                             apellido: sData.apellido,
                             grades: sData.grades || {},
                             extras: sData.extras || {},
+                            trayectoria: sData.trayectoria || {},
                         };
                     }),
                 });
@@ -2449,6 +2751,7 @@
                                     apellido: row.payload.apellido,
                                     grades: row.payload.grades,
                                     extras: row.payload.extras,
+                                    trayectoria: row.payload.trayectoria,
                                     updatedAt: serverTimestamp(),
                                 }
                             });
@@ -2547,6 +2850,37 @@
             }
         }
 
+        async function updateSingleStudentTrayectoriaInFirestore(courseSnapshot, studentRow, fullCoursesSnapshot) {
+            if (!auth || !auth.currentUser || !db) return;
+            const uid = auth.currentUser.uid;
+            const normalizedCourse = sanitizeCourseForFirestore(courseSnapshot, uid);
+            const targetSid = sanitizeSafeId(studentRow.student_id, 's');
+            const targetRow = normalizedCourse.rows.find(r => r.studentId === targetSid);
+            if (!targetRow) {
+                await saveCoursesSnapshotToFirestore(fullCoursesSnapshot, 'append');
+                return;
+            }
+
+            setSyncLabel('Guardando en la nube...', 'syncing');
+            const sPath = `users/${uid}/courses/${normalizedCourse.courseId}/students/${targetRow.studentId}`;
+            const sRef = doc(db, 'users', uid, 'courses', normalizedCourse.courseId, 'students', targetRow.studentId);
+            try {
+                await updateDoc(sRef, {
+                    trayectoria: targetRow.payload.trayectoria,
+                    updatedAt: serverTimestamp(),
+                });
+                setSyncLabel('Sincronizado en la nube', 'ok');
+            } catch (error) {
+                const msg = error instanceof Error ? error.message : String(error);
+                if (msg.includes('No document to update') || msg.includes('not-found')) {
+                    await saveCoursesSnapshotToFirestore(fullCoursesSnapshot, 'append');
+                    return;
+                }
+                setSyncLabel('Error al guardar en la nube', 'err');
+                handleFirestoreError(error, OperationType.UPDATE, sPath);
+            }
+        }
+
         window.cloudBridge = {
             uid: null,
             async syncAfterMutation(coursesSnapshot, mode = 'replace') {
@@ -2557,6 +2891,11 @@
             async syncStudentIntensification(courseSnapshot, studentRow, fullCoursesSnapshot) {
                 if (!this.uid) return;
                 syncChain = syncChain.then(() => updateSingleStudentGradesInFirestore(courseSnapshot, studentRow, fullCoursesSnapshot));
+                await syncChain;
+            },
+            async syncStudentTrayectoria(courseSnapshot, studentRow, fullCoursesSnapshot) {
+                if (!this.uid) return;
+                syncChain = syncChain.then(() => updateSingleStudentTrayectoriaInFirestore(courseSnapshot, studentRow, fullCoursesSnapshot));
                 await syncChain;
             }
         };

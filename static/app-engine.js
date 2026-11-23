@@ -33,20 +33,30 @@
     'seguimiento',
   ]);
 
+  const TRAJECTORY_PATTERNS = {
+    preliminar1: /^(?:1[°ºer]*\s*(?:informe\s*)?preliminar|(?:informe\s*)?preliminar\s*1)(?:\s*\(.*\))?$/i,
+    preliminar2: /^(?:2[°ºdo]*\s*(?:informe\s*)?preliminar|(?:informe\s*)?preliminar\s*2)(?:\s*\(.*\))?$/i,
+    cuatrimestre1: /^(?:(?:nota\s*)?1[°ºer]*\s*cuatrimestre|cuatrimestre\s*1|1[°ºer]*\s*cuat\.?)$/i,
+    cuatrimestre2: /^(?:(?:nota\s*)?2[°ºdo]*\s*cuatrimestre|cuatrimestre\s*2|2[°ºdo]*\s*cuat\.?)$/i,
+    informe1: /^(?:1[°ºer]*\s*informe\s*(?:1[°ºer]*\s*)?(?:cuatrimestr(?:al|e)|bimestr(?:al|e)|cierre)|informe\s*(?:cierre\s*)?1[°ºer]*\s*cuatrimestr(?:al|e)|informe\s*cuatrimestre\s*1)(?:\s*\(.*\))?$/i,
+    informe2: /^(?:2[°ºdo]*\s*informe\s*(?:2[°ºdo]*\s*)?(?:cuatrimestr(?:al|e)|bimestr(?:al|e)|cierre)|informe\s*(?:cierre\s*)?2[°ºdo]*\s*cuatrimestr(?:al|e)|informe\s*cuatrimestre\s*2)(?:\s*\(.*\))?$/i,
+    notaFinal: /^(?:nota\s*final|calificaci[oó]n\s*final|cierre\s*final|final)$/i,
+  };
+
   const FALLBACK_DEMO_CSV = [
-    'colegio,curso,nombre,apellido,Unidad 1 - Números (Examen),Unidad 1 - Números (Recu),Unidad 2 - Ecuaciones (Examen),Unidad 2 - Ecuaciones (Recu),Unidad 3 - Funciones (Examen),Unidad 3 - Funciones (Recu),Unidad 4 - Geometría (Examen),Unidad 4 - Geometría (Recu)',
-    'Instituto San Martín,3° A,Juan,Pérez,8.5,,9.0,,7.5,,8.0,',
-    'Instituto San Martín,3° A,María,Gómez,7.0,,5.5,7.5,8.0,,7.0,',
-    'Instituto San Martín,3° A,Lucas,Martínez,4.0,5.5,5.0,6.0,7.5,,4.5,5.0',
-    'Instituto San Martín,3° A,Valentina,Rodríguez,9.0,,10.0,,9.5,,9.0,',
-    'Instituto San Martín,3° A,Mateo,López,6.0,7.0,4.0,5.0,6.5,,8.0,',
-    'Instituto San Martín,3° B,Sofía,Díaz,10.0,,9.5,,9.0,,10.0,',
-    'Instituto San Martín,3° B,Benjamín,Fernández,3.5,4.0,4.0,5.5,5.0,6.0,3.0,',
-    'Instituto San Martín,3° B,Camila,Sánchez,7.5,,6.0,6.5,8.0,,7.0,',
-    'Instituto San Martín,3° B,Tomás,Romero,,7.5,7.0,,5.0,5.5,6.5,6.0',
-    'Escuela Belgrano,4° A,Martina,Álvarez,5.0,4.5,3.0,4.0,4.5,5.0,6.0,6.5',
-    'Escuela Belgrano,4° A,Joaquín,Silva,8.0,,7.5,,8.5,,7.0,',
-    'Escuela Belgrano,4° A,Emma,Torres,6.5,8.0,7.0,,5.5,6.0,8.5,',
+    'colegio,curso,nombre,apellido,Unidad 1 - Números (Examen),Unidad 1 - Números (Recu),Unidad 2 - Ecuaciones (Examen),Unidad 2 - Ecuaciones (Recu),Unidad 3 - Funciones (Examen),Unidad 3 - Funciones (Recu),Unidad 4 - Geometría (Examen),Unidad 4 - Geometría (Recu),1° Informe Preliminar (TEA/TEP/TED),1° Cuatrimestre,1° Informe Cuatrimestre (TEA/TEP/TED),2° Informe Preliminar (TEA/TEP/TED),2° Cuatrimestre,2° Informe Cuatrimestre (TEA/TEP/TED),Nota Final',
+    'Instituto San Martín,3° A,Juan,Pérez,8.5,,9.0,,7.5,,8.0,,,,,,,',
+    'Instituto San Martín,3° A,María,Gómez,7.0,,5.5,7.5,8.0,,7.0,,,,,,,',
+    'Instituto San Martín,3° A,Lucas,Martínez,4.0,5.5,5.0,6.0,7.5,,4.5,5.0,,,,,,,',
+    'Instituto San Martín,3° A,Valentina,Rodríguez,9.0,,10.0,,9.5,,9.0,,,,,,,',
+    'Instituto San Martín,3° A,Mateo,López,6.0,7.0,4.0,5.0,6.5,,8.0,,,,,,,',
+    'Instituto San Martín,3° B,Sofía,Díaz,10.0,,9.5,,9.0,,10.0,,,,,,,',
+    'Instituto San Martín,3° B,Benjamín,Fernández,3.5,4.0,4.0,5.5,5.0,6.0,3.0,,,,,,,',
+    'Instituto San Martín,3° B,Camila,Sánchez,7.5,,6.0,6.5,8.0,,7.0,,,,,,,',
+    'Instituto San Martín,3° B,Tomás,Romero,,7.5,7.0,,5.0,5.5,6.5,6.0,,,,,,,',
+    'Escuela Belgrano,4° A,Martina,Álvarez,5.0,4.5,3.0,4.0,4.5,5.0,6.0,6.5,,,,,,,',
+    'Escuela Belgrano,4° A,Joaquín,Silva,8.0,,7.5,,8.5,,7.0,,,,,,,',
+    'Escuela Belgrano,4° A,Emma,Torres,6.5,8.0,7.0,,5.5,6.0,8.5,,,,,,,',
   ].join('\n');
 
   function normalizeKey(text) {
@@ -97,6 +107,45 @@
     if (val === false || val === 0 || val === null || val === undefined) return false;
     const s = String(val).trim().toLowerCase();
     return ['si', 'sí', 'true', '1', 'x', 'ok', '✓', '✔', 'intensificada', 'intensifico', 'intensificó', 'aprobada'].includes(s);
+  }
+
+  function toBimestralReport(val) {
+    if (val === null || val === undefined) return '';
+    const s = String(val).trim().toUpperCase();
+    if (s === 'TEA' || s === 'TEP' || s === 'TED') return s;
+    return '';
+  }
+
+  function normalizeTrayectoria(raw) {
+    const src = raw || {};
+    const preliminar1 = toBimestralReport(src.preliminar1);
+    const cuatrimestre1 = toGrade(src.cuatrimestre1);
+    const informe1 = toBimestralReport(src.informe1 !== undefined ? src.informe1 : src.bimestre1);
+    const preliminar2 = toBimestralReport(src.preliminar2);
+    const cuatrimestre2 = toGrade(src.cuatrimestre2);
+    const informe2 = toBimestralReport(src.informe2 !== undefined ? src.informe2 : src.bimestre2);
+    const canCloseFinal = cuatrimestre1 !== null && cuatrimestre2 !== null && cuatrimestre1 >= 7 && cuatrimestre2 >= 7;
+    const suggestedFinal = canCloseFinal
+      ? Math.round(((cuatrimestre1 + cuatrimestre2) / 2) * 100) / 100
+      : null;
+
+    let notaFinal = null;
+    if (canCloseFinal) {
+      const explicitFinal = toGrade(src.notaFinal);
+      notaFinal = explicitFinal !== null ? explicitFinal : (src.notaFinalCleared ? null : suggestedFinal);
+    }
+
+    return {
+      preliminar1,
+      cuatrimestre1,
+      informe1,
+      preliminar2,
+      cuatrimestre2,
+      informe2,
+      can_close_final: canCloseFinal,
+      suggested_final: suggestedFinal,
+      notaFinal,
+    };
   }
 
   function parseCsvTextToMatrix(text) {
@@ -194,6 +243,15 @@
 
   function detectColumns(columns) {
     const metaMap = { colegio: null, curso: null, nombre: null, apellido: null, alumno: null };
+    const trayectoriaMap = {
+      preliminar1: null,
+      cuatrimestre1: null,
+      informe1: null,
+      preliminar2: null,
+      cuatrimestre2: null,
+      informe2: null,
+      notaFinal: null,
+    };
     const unitsMap = {};
     const unitOrder = [];
     const unitNormToKey = {};
@@ -218,6 +276,18 @@
         }
       }
       if (matchedMeta || IGNORED_META_COLS.has(colClean.toLowerCase())) return;
+
+      let matchedTraj = false;
+      for (const [tKey, rx] of Object.entries(TRAJECTORY_PATTERNS)) {
+        if (rx.test(colClean) || rx.test(colCleanNorm)) {
+          if (trayectoriaMap[tKey] === null) {
+            trayectoriaMap[tKey] = colIdx;
+            matchedTraj = true;
+            break;
+          }
+        }
+      }
+      if (matchedTraj) return;
 
       if (EXTRA_TEXT_COLS.has(colCleanNorm) || colClean.toLowerCase().startsWith('extra:')) {
         const label = colClean.toLowerCase().startsWith('extra:') ? colClean.slice(6).trim() : colClean;
@@ -268,10 +338,10 @@
     unitOrder.forEach((u) => {
       orderedUnits[u] = unitsMap[u];
     });
-    return { metaMap, unitsMap: orderedUnits, extraCols };
+    return { metaMap, trayectoriaMap, unitsMap: orderedUnits, extraCols };
   }
 
-  function computeStudentRecord({ colegio, curso, nombre, apellido, sheetName, sourceFile, unitNames, rawGrades, rawIntensified = {}, extras }) {
+  function computeStudentRecord({ colegio, curso, nombre, apellido, sheetName, sourceFile, unitNames, rawGrades, rawIntensified = {}, rawTrayectoria = {}, extras }) {
     const unidadesDetalle = [];
     const unidadesIntensificar = [];
     const unidadesPendientesTotales = [];
@@ -362,6 +432,8 @@
       motivosRiesgo = `Debe intensificar ${cantIntensificar} unidad(es): ${nombresInt}`;
     }
 
+    const trayectoria = normalizeTrayectoria(rawTrayectoria);
+
     return {
       id_alumno: 0,
       colegio: colegio || 'Sin especificar',
@@ -385,6 +457,7 @@
       en_riesgo: cantIntensificar > 0,
       nivel_riesgo: nivelRiesgo,
       motivos_riesgo: motivosRiesgo,
+      trayectoria,
       extras: { ...(extras || {}) },
     };
   }
@@ -415,7 +488,7 @@
       }
     }
 
-    const { metaMap, extraCols } = detected;
+    const { metaMap, trayectoriaMap, extraCols } = detected;
     let { unitsMap } = detected;
 
     const hasNameCols = (metaMap.nombre !== null && metaMap.apellido !== null) || metaMap.alumno !== null;
@@ -512,6 +585,16 @@
         extras[label] = row[idx] != null ? String(row[idx]).trim() : '';
       });
 
+      const rawTrayectoria = {
+        preliminar1: trayectoriaMap.preliminar1 !== null ? row[trayectoriaMap.preliminar1] : '',
+        cuatrimestre1: trayectoriaMap.cuatrimestre1 !== null ? row[trayectoriaMap.cuatrimestre1] : null,
+        informe1: trayectoriaMap.informe1 !== null ? row[trayectoriaMap.informe1] : '',
+        preliminar2: trayectoriaMap.preliminar2 !== null ? row[trayectoriaMap.preliminar2] : '',
+        cuatrimestre2: trayectoriaMap.cuatrimestre2 !== null ? row[trayectoriaMap.cuatrimestre2] : null,
+        informe2: trayectoriaMap.informe2 !== null ? row[trayectoriaMap.informe2] : '',
+        notaFinal: trayectoriaMap.notaFinal !== null ? row[trayectoriaMap.notaFinal] : null,
+      };
+
       parsedStudents.push(
         computeStudentRecord({
           colegio,
@@ -523,6 +606,7 @@
           unitNames,
           rawGrades,
           rawIntensified,
+          rawTrayectoria,
           extras,
         })
       );
@@ -734,6 +818,7 @@
             unitNames: cleanUnits,
             rawGrades,
             rawIntensified,
+            rawTrayectoria: r.trayectoria || {},
             extras: extrasDict,
           })
         );
@@ -915,6 +1000,78 @@
         unitNames: cur.unidades_nombres || (cur.unidades || []).map((u) => u.unidad),
         rawGrades,
         rawIntensified,
+        rawTrayectoria: cur.trayectoria || {},
+        extras: cur.extras,
+      });
+      updated.id_alumno = cur.id_alumno;
+      this.students[idx] = updated;
+      this.saveLocalSnapshot();
+
+      const snapshotCourses = this.exportCoursesSnapshot(false);
+      const targetCourseId = makeSafeId(`${updated.colegio.toLowerCase()}|${updated.curso.toLowerCase()}`, 'c');
+      const targetCourse = snapshotCourses.find((c) => c.course_id === targetCourseId) || null;
+      const targetRow = targetCourse
+        ? targetCourse.rows.find(
+            (r) =>
+              normalizeKey(r.nombre) === normalizeKey(updated.nombre) &&
+              normalizeKey(r.apellido) === normalizeKey(updated.apellido)
+          ) || null
+        : null;
+
+      return {
+        ok: true,
+        student: updated,
+        courseSnapshot: targetCourse,
+        studentRow: targetRow,
+        courses_snapshot: snapshotCourses,
+      };
+    }
+
+    updateStudentTrayectoria(studentId, patch) {
+      const numId = Number(studentId);
+      const idx = this.students.findIndex((s) => s.id_alumno === numId);
+      if (idx === -1) return { ok: false, error: 'Alumno no encontrado.' };
+
+      const cur = this.students[idx];
+      const rawGrades = {};
+      const rawIntensified = {};
+      (cur.unidades || []).forEach((u) => {
+        rawGrades[u.unidad] = [u.examen, u.recu];
+        rawIntensified[u.unidad] = Boolean(u.intensificado);
+      });
+
+      const curTr = cur.trayectoria || {};
+      const incomingPatch = patch || {};
+      const mergedTrayectoria = {
+        ...curTr,
+        ...incomingPatch,
+      };
+
+      const touchedCuat = Object.prototype.hasOwnProperty.call(incomingPatch, 'cuatrimestre1') ||
+        Object.prototype.hasOwnProperty.call(incomingPatch, 'cuatrimestre2');
+      if (touchedCuat && !Object.prototype.hasOwnProperty.call(incomingPatch, 'notaFinal')) {
+        mergedTrayectoria.notaFinalCleared = false;
+        const wasSuggestedOrEmpty = curTr.notaFinal === null || curTr.notaFinal === undefined ||
+          (curTr.suggested_final !== null && curTr.notaFinal === curTr.suggested_final);
+        if (wasSuggestedOrEmpty) {
+          mergedTrayectoria.notaFinal = null;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(incomingPatch, 'notaFinal')) {
+        mergedTrayectoria.notaFinalCleared = toGrade(incomingPatch.notaFinal) === null;
+      }
+
+      const updated = computeStudentRecord({
+        colegio: cur.colegio,
+        curso: cur.curso,
+        nombre: cur.nombre,
+        apellido: cur.apellido,
+        sheetName: cur.hoja,
+        sourceFile: cur.archivo_origen,
+        unitNames: cur.unidades_nombres || (cur.unidades || []).map((u) => u.unidad),
+        rawGrades,
+        rawIntensified,
+        rawTrayectoria: mergedTrayectoria,
         extras: cur.extras,
       });
       updated.id_alumno = cur.id_alumno;
@@ -1003,6 +1160,8 @@
             extras[exName] = v !== null && v !== undefined ? String(v) : '';
           });
 
+          const tr = normalizeTrayectoria(s.trayectoria);
+
           return {
             student_id: studentId,
             colegio,
@@ -1011,6 +1170,15 @@
             apellido,
             grades,
             extras,
+            trayectoria: {
+              preliminar1: tr.preliminar1,
+              cuatrimestre1: tr.cuatrimestre1,
+              informe1: tr.informe1,
+              preliminar2: tr.preliminar2,
+              cuatrimestre2: tr.cuatrimestre2,
+              informe2: tr.informe2,
+              notaFinal: tr.notaFinal,
+            },
           };
         });
 
@@ -1080,6 +1248,7 @@
               unitNames: cleanUnits,
               rawGrades,
               rawIntensified,
+              rawTrayectoria: r.trayectoria || {},
               extras: extrasDict,
             })
           );
@@ -1096,6 +1265,19 @@
     }
 
     buildStudentIntensificationMarkdown(student) {
+      const tr = normalizeTrayectoria(student.trayectoria);
+      const p1Txt = tr.preliminar1 || 'Sin cargar';
+      const c1Txt = tr.cuatrimestre1 !== null ? String(tr.cuatrimestre1) : 'Sin cargar';
+      const i1Txt = tr.informe1 || 'Sin cargar';
+      const p2Txt = tr.preliminar2 || 'Sin cargar';
+      const c2Txt = tr.cuatrimestre2 !== null ? String(tr.cuatrimestre2) : 'Sin cargar';
+      const i2Txt = tr.informe2 || 'Sin cargar';
+      const nfTxt = tr.can_close_final
+        ? (tr.notaFinal !== null
+            ? `**${tr.notaFinal}**${tr.suggested_final === tr.notaFinal ? ' (Sugerida por promedio)' : ' (Editada/Cerrada)'}`
+            : `Habilitada para cierre (Sugerida: ${tr.suggested_final})`)
+        : 'No cerrada (requiere ambos cuatrimestres >= 7)';
+
       const lines = [
         '# Informe Individual de Seguimiento e Intensificación',
         '',
@@ -1103,7 +1285,12 @@
         `- **Colegio:** ${student.colegio}`,
         `- **Curso:** ${student.curso}`,
         `- **Estado General:** **${student.estado}** (${student.cant_aprobadas}/${student.total_unidades} unidades aprobadas)`,
-        `- **Promedio Vigente:** ${student.promedio}`,
+        `- **Promedio Vigente (unidades):** ${student.promedio}`,
+        '',
+        '## Trayectoria Cuatrimestral e Informes',
+        `- **1° Cuatrimestre:** Preliminar: ${p1Txt} | Nota: ${c1Txt} | Informe Cierre: ${i1Txt}`,
+        `- **2° Cuatrimestre:** Preliminar: ${p2Txt} | Nota: ${c2Txt} | Informe Cierre: ${i2Txt}`,
+        `- **Nota Final:** ${nfTxt}`,
         '',
         '## Detalle por Unidad Evaluada',
         '',
@@ -1151,11 +1338,13 @@
           const intNames = (s.unidades_intensificar || []).map((u) => u.unidad).join(', ') || 'Ninguna';
           const doneNames = (s.unidades || []).filter((u) => u.intensificado).map((u) => u.unidad).join(', ');
           const doneTxt = doneNames ? ` | Ya intensificadas: ${doneNames}` : '';
+          const tr = normalizeTrayectoria(s.trayectoria);
+          const trTxt = ` | Prelim1:${tr.preliminar1 || '-'}, Cuat1:${tr.cuatrimestre1 ?? '-'}, Inf1:${tr.informe1 || '-'}, Prelim2:${tr.preliminar2 || '-'}, Cuat2:${tr.cuatrimestre2 ?? '-'}, Inf2:${tr.informe2 || '-'}, Final:${tr.notaFinal ?? (tr.can_close_final ? `Sug(${tr.suggested_final})` : 'Bloqueada(<7)')}`;
           const extrasEntries = Object.entries(s.extras || {}).filter(([, v]) => String(v).trim() !== '');
           const extrasTxt = extrasEntries.length
             ? ' | Extras: ' + extrasEntries.map(([k, v]) => `${k}=${v}`).join(', ')
             : '';
-          return `- ${s.nombre_completo} | Colegio: ${s.colegio} | Curso: ${s.curso} | Estado: ${s.estado} | Promedio: ${s.promedio} | Pendientes de intensificar (${s.cant_intensificar}): ${intNames}${doneTxt} | Detalle: ${unitParts.join(' ; ')}${extrasTxt}`;
+          return `- ${s.nombre_completo} | Colegio: ${s.colegio} | Curso: ${s.curso} | Estado: ${s.estado} | Promedio: ${s.promedio}${trTxt} | Pendientes de intensificar (${s.cant_intensificar}): ${intNames}${doneTxt} | Detalle: ${unitParts.join(' ; ')}${extrasTxt}`;
         })
         .join('\n');
     }
@@ -1315,6 +1504,14 @@
             const colHeader = EXTRA_TEXT_COLS.has(normalizeKey(exCol)) ? exCol : `Extra: ${exCol}`;
             row[colHeader] = (s.extras && s.extras[exCol]) || '';
           });
+          const tr = normalizeTrayectoria(s.trayectoria);
+          row['1° Informe Preliminar (TEA/TEP/TED)'] = tr.preliminar1 || '';
+          row['1° Cuatrimestre'] = tr.cuatrimestre1;
+          row['1° Informe Cuatrimestre (TEA/TEP/TED)'] = tr.informe1 || '';
+          row['2° Informe Preliminar (TEA/TEP/TED)'] = tr.preliminar2 || '';
+          row['2° Cuatrimestre'] = tr.cuatrimestre2;
+          row['2° Informe Cuatrimestre (TEA/TEP/TED)'] = tr.informe2 || '';
+          row['Nota Final'] = tr.notaFinal;
           return row;
         });
 
@@ -1345,24 +1542,36 @@
       const wb = global.XLSX.utils.book_new();
 
       if (fmt === 'multi-xlsx' || fmt === 'multi') {
+        const emptyTraj = {
+          '1° Informe Preliminar (TEA/TEP/TED)': '',
+          '1° Cuatrimestre': null,
+          '1° Informe Cuatrimestre (TEA/TEP/TED)': '',
+          '2° Informe Preliminar (TEA/TEP/TED)': '',
+          '2° Cuatrimestre': null,
+          '2° Informe Cuatrimestre (TEA/TEP/TED)': '',
+          'Nota Final': null,
+        };
         const df3a = [
           {
             colegio: 'Instituto San Martín', curso: '3° A', nombre: 'Juan', apellido: 'Pérez',
             'U1 - Números (Examen)': 8.5, 'U1 - Números (Recu)': null,
             'U2 - Ecuaciones (Examen)': 9.0, 'U2 - Ecuaciones (Recu)': null,
             'U3 - Funciones (Examen)': 7.5, 'U3 - Funciones (Recu)': null,
+            ...emptyTraj,
           },
           {
             colegio: 'Instituto San Martín', curso: '3° A', nombre: 'María', apellido: 'Gómez',
             'U1 - Números (Examen)': 7.0, 'U1 - Números (Recu)': null,
             'U2 - Ecuaciones (Examen)': 5.5, 'U2 - Ecuaciones (Recu)': 7.5,
             'U3 - Funciones (Examen)': 8.0, 'U3 - Funciones (Recu)': null,
+            ...emptyTraj,
           },
           {
             colegio: 'Instituto San Martín', curso: '3° A', nombre: 'Lucas', apellido: 'Martínez',
             'U1 - Números (Examen)': 4.0, 'U1 - Números (Recu)': 5.5,
             'U2 - Ecuaciones (Examen)': 5.0, 'U2 - Ecuaciones (Recu)': 6.0,
             'U3 - Funciones (Examen)': 7.5, 'U3 - Funciones (Recu)': null,
+            ...emptyTraj,
           },
         ];
         const df4a = [
@@ -1372,6 +1581,7 @@
             'U2 - Trigonometría (Examen)': 3.0, 'U2 - Trigonometría (Recu)': 4.0,
             'U3 - Estadística (Examen)': 7.5, 'U3 - Estadística (Recu)': null,
             'U4 - Probabilidad (Examen)': 6.0, 'U4 - Probabilidad (Recu)': 6.5,
+            ...emptyTraj,
           },
           {
             colegio: 'Escuela Belgrano', curso: '4° A', nombre: 'Joaquín', apellido: 'Silva',
@@ -1379,6 +1589,7 @@
             'U2 - Trigonometría (Examen)': 7.5, 'U2 - Trigonometría (Recu)': null,
             'U3 - Estadística (Examen)': 8.5, 'U3 - Estadística (Recu)': null,
             'U4 - Probabilidad (Examen)': 7.0, 'U4 - Probabilidad (Recu)': null,
+            ...emptyTraj,
           },
         ];
         global.XLSX.utils.book_append_sheet(wb, global.XLSX.utils.json_to_sheet(df3a), '3° A - San Martín');
