@@ -1,0 +1,11 @@
+id_alumno,materia,parcial_1,parcial_2,asistencia
+101,Matemáticas,8.5,9.0,92%
+102,Matemáticas,7.0,5.5,80%
+103,Matemáticas,4.0,5.0,70%
+104,Matemáticas,9.0,10.0,95%
+105,Matemáticas,6.0,,85%
+106,Matemáticas,3.5,4.0,60%
+107,Matemáticas,10.0,9.5,100%
+108,Matemáticas,5.5,6.0,78%
+109,Matemáticas,,7.0,88%
+110,Matemáticas,2.0,3.0,50%

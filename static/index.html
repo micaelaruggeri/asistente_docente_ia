@@ -1,0 +1,2486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Docente Inteligente — Seguimiento e Intensificación</title>
+    <meta name="description" content="Asistente inteligente para docentes que analiza calificaciones, intensificación de unidades y seguimiento estudiantil con Excel/CSV, PDF y respaldo en la nube.">
+    <meta property="og:title" content="Chatbot Docente Inteligente — Seguimiento e Intensificación">
+    <meta property="og:description" content="Asistente inteligente para docentes con carga de Excel multipestaña, carga directa, reportes en PDF y guardado en la nube.">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Marked.js (Markdown Parser) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Excel (SheetJS), PDF (jsPDF + AutoTable) y Motor Docente JS local/Netlify -->
+    <script src="/vendor/xlsx.full.min.js"></script>
+    <script src="/vendor/jspdf.umd.min.js"></script>
+    <script src="/vendor/jspdf.plugin.autotable.min.js"></script>
+    <script src="/app-engine.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .markdown-body h1 { font-size: 1.35rem; font-weight: 700; margin-top: 0.5rem; margin-bottom: 0.75rem; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem; }
+        .markdown-body h2 { font-size: 1.1rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: #1e293b; }
+        .markdown-body h3 { font-size: 0.98rem; font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; color: #334155; }
+        .markdown-body p { margin-bottom: 0.65rem; line-height: 1.6; color: #334155; }
+        .markdown-body ul, .markdown-body ol { margin-left: 1.4rem; margin-bottom: 0.85rem; list-style-type: disc; }
+        .markdown-body li { margin-bottom: 0.25rem; }
+        .markdown-body code { font-family: monospace; background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; }
+        .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.85em; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e2e8f0; padding: 7px 10px; text-align: left; }
+        .markdown-body th { background-color: #f1f5f9; font-weight: 600; }
+        .markdown-body blockquote { border-left: 4px solid #cbd5e1; padding-left: 1rem; color: #64748b; font-style: italic; margin-bottom: 1rem; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #report-paper, #report-paper * { visibility: visible; }
+            #report-paper {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 16px !important;
+                background: white !important;
+            }
+            .student-report-page {
+                page-break-after: always;
+                break-after: page;
+                border: none !important;
+                box-shadow: none !important;
+                margin-bottom: 0 !important;
+                padding: 8px 0 !important;
+            }
+            .student-report-page:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+    <!-- HEADER -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-6 py-3 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-slate-900 text-white rounded-xl shrink-0">
+                <i data-lucide="graduation-cap" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-display font-bold text-base sm:text-lg tracking-tight text-slate-900">Asistente Docente — Seguimiento e Intensificación</h1>
+                <p class="text-xs text-slate-500">Planilla con unidades dinámicas (Examen + Recuperatorio · Aprueba con ≥ 6.75 = 7)</p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end">
+            <div class="flex flex-wrap items-center gap-2">
+                <div id="badge-files" class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-600 border border-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-slate-400" id="badge-files-dot"></span>
+                    <span id="badge-files-text">Cargando...</span>
+                </div>
+                <div id="badge-ai" class="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg text-xs font-medium text-amber-700 border border-amber-200">
+                    <span class="w-2 h-2 rounded-full bg-amber-400" id="badge-ai-dot"></span>
+                    <span id="badge-ai-text">Modo Local</span>
+                </div>
+            </div>
+
+            <!-- Cuenta Google & Persistencia en Nube Firebase -->
+            <div id="cloud-auth-bar" class="flex items-center gap-2 pl-2 border-l border-slate-200">
+                <div id="auth-signed-out" class="flex items-center gap-2">
+                    <span id="cloud-local-hint" class="hidden sm:inline text-[11px] text-slate-500">Temporal</span>
+                    <button type="button" id="btn-google-login" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                        <i data-lucide="cloud" class="w-3.5 h-3.5 text-sky-300"></i>
+                        <span>Iniciar sesión con Google (Guardar gratis)</span>
+                    </button>
+                </div>
+                <div id="auth-signed-in" class="hidden flex items-center gap-2">
+                    <div class="text-right leading-tight">
+                        <div id="auth-user-name" class="text-xs font-semibold text-slate-800 max-w-[160px] truncate">Docente</div>
+                        <div id="cloud-sync-status" class="text-[10px] text-emerald-700 font-medium">Sincronizado en la nube</div>
+                    </div>
+                    <button type="button" id="btn-cloud-save-now" class="hidden px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold rounded-lg transition-colors whitespace-nowrap" title="Guardar datos actuales en tu cuenta">
+                        Guardar en nube
+                    </button>
+                    <button type="button" id="btn-google-logout" class="px-2.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors whitespace-nowrap" title="Cerrar sesión">
+                        Salir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN BODY -->
+    <main class="flex-1 max-w-[1650px] w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-76px)] lg:overflow-hidden">
+
+        <!-- LEFT COLUMN: PLANILLA, FILTROS, KPIs, INTENSIFICACIÓN, TABLA Y GRÁFICOS -->
+        <section class="lg:col-span-7 flex flex-col gap-5 lg:overflow-y-auto pr-1 h-full">
+
+            <!-- PANEL DE CARGA Y EDICIÓN DIRECTA -->
+            <div id="data-manager-card" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-3.5">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="file-spreadsheet" class="w-5 h-5 text-indigo-600"></i>
+                        <h2 class="font-display font-semibold text-base text-slate-900">Cargar o Editar Datos</h2>
+                    </div>
+                    <div class="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+                        <button type="button" id="mode-tab-upload" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-sm transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5">
+                            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                            Subir Excel / CSV
+                        </button>
+                        <button type="button" id="mode-tab-direct" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5">
+                            <i data-lucide="table" class="w-3.5 h-3.5"></i>
+                            Carga Directa
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MODO 1: SUBIR ARCHIVOS EXCEL / CSV -->
+                <div id="input-pane-upload">
+                    <div class="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 transition-colors cursor-pointer group flex flex-col sm:flex-row items-center justify-center gap-3 text-center sm:text-left">
+                        <input type="file" id="planilla-file" name="files" accept=".csv,.xlsx,.xls" multiple class="absolute inset-0 opacity-0 cursor-pointer">
+                        <div class="p-2.5 bg-slate-50 group-hover:bg-indigo-50 rounded-xl text-slate-500 group-hover:text-indigo-600 transition-colors shrink-0">
+                            <i data-lucide="upload" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors" id="planilla-file-label">Hacé clic o arrastrá 1 o varios archivos (Excel multipestaña o CSV)</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Cada pestaña o archivo puede tener <strong>sus propias unidades</strong>: <strong>colegio, curso, nombre, apellido</strong> + pares <strong>(Examen)</strong> y <strong>(Recu)</strong></p>
+                        </div>
+                    </div>
+
+                    <!-- Aviso dinámico de sobrescritura -->
+                    <div id="upload-mode-notice" class="mt-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-start gap-2">
+                        <i data-lucide="info" class="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600"></i>
+                        <span id="upload-mode-notice-text"><strong>Atención:</strong> en modo <strong>Reemplazar todo</strong>, cada vez que subís una planilla se sobrescriben los datos actuales y se pierde lo cargado anteriormente. Si querés conservar otros cursos, elegí <strong>Agregar / Actualizar cursos</strong>.</span>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-3 mt-3.5 pt-3.5 border-t border-slate-100">
+                        <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                            <span class="font-medium">Plantillas:</span>
+                            <button type="button" id="btn-tpl-multi" class="text-indigo-600 hover:text-indigo-800 underline underline-offset-2 font-semibold cursor-pointer">Excel Multipestaña (varios cursos)</button>
+                            <span>·</span>
+                            <button type="button" id="btn-tpl-xlsx" class="text-indigo-600 hover:text-indigo-800 underline underline-offset-2 font-medium cursor-pointer">Excel 1 Curso (.xlsx)</button>
+                            <span>·</span>
+                            <button type="button" id="btn-tpl-csv" class="text-indigo-600 hover:text-indigo-800 underline underline-offset-2 font-medium cursor-pointer">CSV</button>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select id="upload-mode" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:border-indigo-400" title="Elegí si reemplazás todo o si agregás/actualizás cursos">
+                                <option value="replace">Reemplazar todo</option>
+                                <option value="append">Agregar / Actualizar cursos</option>
+                            </select>
+                            <button type="button" id="btn-reset-demo" class="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                Demo
+                            </button>
+                            <button type="button" id="btn-submit-upload" class="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                                <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
+                                Procesar
+                            </button>
+                        </div>
+                    </div>
+                    <div id="upload-feedback" class="hidden mt-3 px-3 py-2 rounded-xl text-xs font-medium"></div>
+                </div>
+
+                <!-- MODO 2: CARGA DIRECTA Y COLUMNAS EXTRA EN PANTALLA -->
+                <div id="input-pane-direct" class="hidden flex-col gap-3">
+                    <!-- Acciones rápidas de origen y vista -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button type="button" id="btn-direct-load-current" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                Cargar datos actuales
+                            </button>
+                            <button type="button" id="btn-direct-new" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                                <i data-lucide="file-plus-2" class="w-3.5 h-3.5"></i>
+                                Planilla nueva en blanco
+                            </button>
+                        </div>
+                        <button type="button" id="btn-direct-expand" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                            <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                            <span id="btn-direct-expand-label">Expandir editor</span>
+                        </button>
+                    </div>
+
+                    <!-- Constructor de columnas extra, unidades y valores por defecto -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                        <div class="flex items-center gap-1.5">
+                            <input type="text" id="direct-new-unit" placeholder="Nueva unidad (ej: Unidad 5 - Funciones)" class="flex-1 min-w-0 px-2.5 py-1.5 bg-white text-xs border border-slate-200 rounded-lg outline-none focus:border-indigo-400">
+                            <button type="button" id="btn-direct-add-unit" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                Unidad (Ex/Recu)
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <input type="text" id="direct-new-extra" placeholder="Columna extra (ej: Observaciones, TP, Asistencia)" class="flex-1 min-w-0 px-2.5 py-1.5 bg-white text-xs border border-slate-200 rounded-lg outline-none focus:border-indigo-400">
+                            <button type="button" id="btn-direct-add-extra" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1">
+                                <i data-lucide="columns-3" class="w-3.5 h-3.5"></i>
+                                Columna Extra
+                            </button>
+                        </div>
+                        <div class="md:col-span-2 flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/70">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-[11px] font-medium text-slate-500">Para filas nuevas:</span>
+                                <input type="text" id="direct-default-colegio" placeholder="Colegio" value="Colegio San Agustín" class="w-40 px-2.5 py-1 bg-white text-xs border border-slate-200 rounded-lg outline-none focus:border-indigo-400">
+                                <input type="text" id="direct-default-curso" placeholder="Curso (ej: 2° B)" value="2° B" class="w-28 px-2.5 py-1 bg-white text-xs border border-slate-200 rounded-lg outline-none focus:border-indigo-400">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" id="btn-direct-sort-surname" class="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1" title="Ordenar filas alfabéticamente por apellido">
+                                    <i data-lucide="arrow-down-a-z" class="w-3.5 h-3.5"></i>
+                                    Ordenar por Apellido
+                                </button>
+                                <button type="button" id="btn-direct-add-row" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1">
+                                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                                    Agregar Alumno
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grilla editable estilo planilla -->
+                    <div id="direct-grid-wrapper" class="overflow-x-auto overflow-y-auto rounded-xl border border-slate-200 max-h-[340px] bg-white">
+                        <table class="w-full text-left border-collapse text-xs whitespace-nowrap">
+                            <thead id="direct-grid-head" class="bg-slate-50 text-slate-600 sticky top-0 z-20 border-b border-slate-200"></thead>
+                            <tbody id="direct-grid-body" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="direct-schema-hint" class="hidden px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-[11px]"></div>
+
+                    <!-- Barra inferior de guardado y descarga -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
+                        <div class="text-[11px] text-slate-500">
+                            Aprueba cada unidad con <strong class="text-slate-700 font-mono tabular-nums">≥ 6.75</strong> (equivale a 7). Dejá vacío si estuvo ausente.
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select id="direct-save-mode" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:border-indigo-400">
+                                <option value="replace">Reemplazar todo</option>
+                                <option value="append">Agregar / Actualizar cursos</option>
+                            </select>
+                            <button type="button" id="btn-direct-export-xlsx" class="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                                <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
+                                Exportar .xlsx
+                            </button>
+                            <button type="button" id="btn-direct-save" class="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0">
+                                <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                                Guardar y Aplicar
+                            </button>
+                        </div>
+                    </div>
+                    <div id="direct-feedback" class="hidden px-3 py-2 rounded-xl text-xs font-medium"></div>
+                </div>
+            </div>
+
+            <!-- BARRA DE FILTROS (COLEGIO Y CURSO) -->
+            <div class="bg-white rounded-2xl border border-slate-200 px-4 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <i data-lucide="filter" class="w-4 h-4 text-indigo-600"></i>
+                    <span>Filtrar vista:</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2.5 flex-1 justify-end">
+                    <div class="flex items-center gap-1.5">
+                        <label for="filter-colegio" class="text-[11px] text-slate-500 font-medium">Colegio:</label>
+                        <select id="filter-colegio" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:border-indigo-400">
+                            <option value="Todos">Todos</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <label for="filter-curso" class="text-[11px] text-slate-500 font-medium">Curso:</label>
+                        <select id="filter-curso" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:border-indigo-400">
+                            <option value="Todos">Todos</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI CARDS -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between text-slate-400 mb-1.5">
+                        <span class="text-[11px] font-medium uppercase tracking-wider">Alumnos</span>
+                        <div class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><i data-lucide="users" class="w-4 h-4"></i></div>
+                    </div>
+                    <span id="stat-total" class="font-display font-bold text-2xl text-slate-900">0</span>
+                    <span class="text-[10px] text-slate-400 mt-0.5">En la vista actual</span>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between text-slate-400 mb-1.5">
+                        <span class="text-[11px] font-medium uppercase tracking-wider">Aprobados</span>
+                        <div class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="check-circle-2" class="w-4 h-4"></i></div>
+                    </div>
+                    <span id="stat-aprobacion" class="font-display font-bold text-2xl text-emerald-700">0%</span>
+                    <span id="stat-aprobados-count" class="text-[10px] text-slate-400 mt-0.5">Todas las unidades ≥ 7</span>
+                </div>
+                <div class="bg-white rounded-2xl border border-rose-200 p-4 shadow-sm flex flex-col" id="card-riesgo">
+                    <div class="flex items-center justify-between text-slate-400 mb-1.5">
+                        <span class="text-[11px] font-medium uppercase tracking-wider text-rose-600">Intensifican</span>
+                        <div class="p-1.5 bg-rose-50 text-rose-600 rounded-lg"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div>
+                    </div>
+                    <span id="stat-riesgo" class="font-display font-bold text-2xl text-rose-600">0</span>
+                    <span class="text-[10px] text-rose-400 mt-0.5">Con 1 o más unidades &lt; 6.75</span>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between text-slate-400 mb-1.5">
+                        <span class="text-[11px] font-medium uppercase tracking-wider">Unidades</span>
+                        <div class="p-1.5 bg-sky-50 text-sky-600 rounded-lg"><i data-lucide="layers" class="w-4 h-4"></i></div>
+                    </div>
+                    <span id="stat-unidades" class="font-display font-bold text-2xl text-slate-900">0</span>
+                    <span id="stat-promedio" class="text-[10px] text-slate-400 mt-0.5">Prom. gral: 0.0</span>
+                </div>
+            </div>
+
+            <!-- ALUMNOS QUE DEBEN INTENSIFICAR -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-3.5">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="clipboard-list" class="w-5 h-5 text-rose-600"></i>
+                        <h2 class="font-display font-semibold text-base text-slate-900">Alumnos que deben Intensificar</h2>
+                    </div>
+                    <span class="text-[10px] text-slate-400">Hacé clic en "Reporte" para el informe individual</span>
+                </div>
+                <div id="risk-list" class="flex flex-col gap-2.5 max-h-[240px] overflow-y-auto pr-1">
+                    <div class="text-center py-4 text-xs text-slate-400">Cargando datos...</div>
+                </div>
+            </div>
+
+            <!-- TABLA DINÁMICA DE CALIFICACIONES POR UNIDAD -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col min-h-[320px]">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="table-2" class="w-5 h-5 text-slate-700"></i>
+                        <h2 class="font-display font-semibold text-base text-slate-900">Matriz de Unidades (Examen / Recu)</h2>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="relative">
+                            <input type="text" id="table-search" placeholder="Buscar alumno, curso o colegio..." class="w-full sm:w-56 pl-9 pr-3 py-1.5 bg-slate-50 hover:bg-slate-100 focus:bg-white text-xs rounded-lg border border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none transition-colors">
+                            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i>
+                        </div>
+                        <button type="button" id="btn-jump-direct-edit" class="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap shrink-0">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                            Editar acá
+                        </button>
+                        <button type="button" id="btn-table-export-xlsx" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap shrink-0">
+                            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                            .xlsx
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto overflow-y-auto rounded-xl border border-slate-100 max-h-[380px]">
+                    <table class="w-full text-left border-collapse text-xs whitespace-nowrap">
+                        <thead id="students-table-head" class="bg-slate-50 text-slate-500 font-medium sticky top-0 uppercase tracking-wider border-b border-slate-200 z-10 text-[10px]">
+                            <!-- Generado dinámicamente según las unidades del archivo -->
+                        </thead>
+                        <tbody id="students-table-body" class="divide-y divide-slate-100">
+                            <tr><td class="text-center py-8 text-slate-400">Cargando planilla...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- GRÁFICOS -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <h3 class="font-display font-semibold text-base text-slate-900 mb-4 flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-600"></i>
+                    Panorama de Intensificación por Unidad
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
+                    <div class="sm:col-span-8 h-56 flex items-center justify-center">
+                        <canvas id="chart-units"></canvas>
+                    </div>
+                    <div class="sm:col-span-4 h-56 flex items-center justify-center">
+                        <canvas id="chart-status"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN: CHATBOT Y REPORTES (INDIVIDUAL POR ALUMNO + GENERAL) -->
+        <section class="lg:col-span-5 flex flex-col gap-4 h-full overflow-hidden">
+
+            <!-- TABS -->
+            <div class="bg-slate-100 p-1 rounded-xl flex shrink-0">
+                <button id="tab-btn-chat" class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 bg-white text-slate-900 shadow-sm transition-all">
+                    <i data-lucide="message-square" class="w-4 h-4"></i>
+                    Chatbot Docente
+                </button>
+                <button id="tab-btn-report" class="flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 transition-all">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    Reportes e Intensificación
+                </button>
+            </div>
+
+            <!-- CHATBOT -->
+            <div id="tab-content-chat" class="bg-white rounded-2xl border border-slate-200 flex-1 flex flex-col overflow-hidden shadow-sm">
+                <div class="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                        <span class="text-xs font-bold text-slate-700 tracking-tight">Consultas sobre Alumnos y Unidades</span>
+                    </div>
+                    <button id="btn-clear-chat" class="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-colors" title="Limpiar Conversación">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div id="chat-messages" class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+                    <div class="flex items-start gap-2.5 max-w-[88%]">
+                        <div class="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg shrink-0">
+                            <i data-lucide="bot" class="w-4 h-4"></i>
+                        </div>
+                        <div class="bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none p-3.5 text-xs shadow-sm">
+                            <p class="font-semibold mb-1">¡Hola! 👋</p>
+                            <p class="mb-1.5">Ya analicé la planilla con todas sus unidades (Examen y Recuperatorio).</p>
+                            <p>Podés preguntarme qué unidades debe intensificar cada alumno, qué unidad costó más o pedirme recomendaciones pedagógicas.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preguntas rápidas -->
+                <div class="px-4 py-2 bg-slate-50 border-t border-slate-100">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">Consultas rápidas</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button class="quick-prompt-btn px-2.5 py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 rounded-lg text-[10px] font-medium text-slate-600 transition-colors">
+                            ¿Quiénes intensifican y qué unidades debe cada uno?
+                        </button>
+                        <button class="quick-prompt-btn px-2.5 py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 rounded-lg text-[10px] font-medium text-slate-600 transition-colors">
+                            ¿Qué unidad tiene más alumnos para intensificar?
+                        </button>
+                        <button class="quick-prompt-btn px-2.5 py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 rounded-lg text-[10px] font-medium text-slate-600 transition-colors">
+                            ¿Quiénes aprobaron todas las unidades?
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-white border-t border-slate-100 flex gap-2">
+                    <input type="text" id="chat-input" placeholder="Ej: ¿Qué unidades tiene que intensificar Lucas Martínez?" class="flex-1 px-3.5 py-2.5 bg-slate-50 focus:bg-white text-xs border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl outline-none transition-colors">
+                    <button id="chat-send-btn" class="px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors shadow-sm flex items-center justify-center">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- REPORTES (INDIVIDUAL POR ALUMNO + GENERAL DEL CURSO) -->
+            <div id="tab-content-report" class="bg-white rounded-2xl border border-slate-200 flex-1 flex flex-col overflow-hidden shadow-sm hidden">
+                <div class="p-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4 text-indigo-600"></i>
+                        <span id="report-title-bar" class="text-xs font-bold text-slate-700 tracking-tight">Reportes de Intensificación</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button id="btn-download-report" class="px-2.5 py-1 hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 text-[10px] font-semibold transition-colors flex items-center gap-1" title="Descargar en Markdown">
+                            <i data-lucide="download" class="w-3 h-3"></i>
+                            .md
+                        </button>
+                        <button id="btn-print-report" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-semibold transition-colors flex items-center gap-1 shadow-sm">
+                            <i data-lucide="file-down" class="w-3 h-3"></i>
+                            Descargar PDF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Controles de selección de reporte -->
+                <div class="p-3 border-b border-slate-100 bg-white flex flex-col gap-2.5">
+                    <!-- Reporte Individual -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="report-student-select" class="flex-1 min-w-[180px] text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:border-indigo-400">
+                            <option value="">Seleccionar alumno para reporte individual...</option>
+                        </select>
+                        <button id="btn-student-report" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                            <i data-lucide="user-check" class="w-3.5 h-3.5"></i>
+                            Reporte Alumno
+                        </button>
+                    </div>
+                    <!-- Reportes en Lote (1 hoja por alumno al imprimir) -->
+                    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                        <select id="batch-report-filter" class="flex-1 min-w-[180px] text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:border-indigo-400">
+                            <option value="all">Lote: Todos los alumnos (1 hoja c/u)</option>
+                            <option value="intensifica">Lote: Solo los que intensifican</option>
+                            <option value="aprobado">Lote: Solo los aprobados</option>
+                        </select>
+                        <button id="btn-batch-report" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                            <i data-lucide="files" class="w-3.5 h-3.5"></i>
+                            Generar Lote
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 pt-1">
+                        <label class="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer select-none">
+                            <input type="checkbox" id="chk-student-ai" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                            <span>Sumar sugerencias IA (individual)</span>
+                        </label>
+                        <button id="btn-generate-report" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                            <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+                            Resumen General del Curso
+                        </button>
+                    </div>
+                </div>
+
+                <div id="report-container" class="flex-1 overflow-y-auto p-5 bg-slate-50/50">
+                    <div id="report-empty-state" class="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto">
+                        <div class="p-3 bg-indigo-50 text-indigo-600 rounded-2xl mb-3">
+                            <i data-lucide="file-check-2" class="w-8 h-8"></i>
+                        </div>
+                        <h4 class="font-display font-semibold text-sm text-slate-900 mb-1">Reportes Individuales y del Curso</h4>
+                        <p class="text-xs text-slate-500 leading-relaxed">Elegí un alumno arriba (o hacé clic en <strong>Reporte</strong> en la tabla) para ver exactamente qué unidades debe intensificar, o generá el informe completo del curso.</p>
+                    </div>
+
+                    <div id="report-paper" class="w-full bg-white border border-slate-200 shadow-sm p-6 rounded-xl hidden text-left markdown-body text-xs"></div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        // DOM Elements
+        const planillaFileInput = document.getElementById('planilla-file');
+        const planillaFileLabel = document.getElementById('planilla-file-label');
+        const btnSubmitUpload = document.getElementById('btn-submit-upload');
+        const btnResetDemo = document.getElementById('btn-reset-demo');
+
+        const filterColegio = document.getElementById('filter-colegio');
+        const filterCurso = document.getElementById('filter-curso');
+
+        const badgeFiles = document.getElementById('badge-files');
+        const badgeFilesDot = document.getElementById('badge-files-dot');
+        const badgeFilesText = document.getElementById('badge-files-text');
+        const badgeAi = document.getElementById('badge-ai');
+        const badgeAiDot = document.getElementById('badge-ai-dot');
+        const badgeAiText = document.getElementById('badge-ai-text');
+
+        const statTotal = document.getElementById('stat-total');
+        const statAprobacion = document.getElementById('stat-aprobacion');
+        const statAprobadosCount = document.getElementById('stat-aprobados-count');
+        const statRiesgo = document.getElementById('stat-riesgo');
+        const cardRiesgo = document.getElementById('card-riesgo');
+        const statUnidades = document.getElementById('stat-unidades');
+        const statPromedio = document.getElementById('stat-promedio');
+
+        const riskList = document.getElementById('risk-list');
+        const studentsTableHead = document.getElementById('students-table-head');
+        const studentsTableBody = document.getElementById('students-table-body');
+        const tableSearch = document.getElementById('table-search');
+
+        const tabBtnChat = document.getElementById('tab-btn-chat');
+        const tabBtnReport = document.getElementById('tab-btn-report');
+        const tabContentChat = document.getElementById('tab-content-chat');
+        const tabContentReport = document.getElementById('tab-content-report');
+
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+        const btnClearChat = document.getElementById('btn-clear-chat');
+
+        const reportStudentSelect = document.getElementById('report-student-select');
+        const batchReportFilter = document.getElementById('batch-report-filter');
+        const btnBatchReport = document.getElementById('btn-batch-report');
+        const chkStudentAi = document.getElementById('chk-student-ai');
+        const btnStudentReport = document.getElementById('btn-student-report');
+        const btnGenerateReport = document.getElementById('btn-generate-report');
+        const btnDownloadReport = document.getElementById('btn-download-report');
+        const btnPrintReport = document.getElementById('btn-print-report');
+        const reportEmptyState = document.getElementById('report-empty-state');
+        const reportPaper = document.getElementById('report-paper');
+        const reportTitleBar = document.getElementById('report-title-bar');
+        const toastContainer = document.getElementById('toast-container');
+
+        let chartUnits = null;
+        let chartStatus = null;
+        let cachedStudents = [];
+        let cachedUnits = [];
+        let cachedExtraColumns = [];
+        let cachedUniformUnits = true;
+        let chatHistory = [];
+        let lastReportMarkdown = "";
+        let lastReportPages = [];
+        let lastReportFilename = "informe_intensificacion.md";
+        const uploadModeSelect = document.getElementById('upload-mode');
+        const uploadModeNotice = document.getElementById('upload-mode-notice');
+        const uploadModeNoticeText = document.getElementById('upload-mode-notice-text');
+        const uploadFeedback = document.getElementById('upload-feedback');
+
+        const dataManagerCard = document.getElementById('data-manager-card');
+        const modeTabUpload = document.getElementById('mode-tab-upload');
+        const modeTabDirect = document.getElementById('mode-tab-direct');
+        const inputPaneUpload = document.getElementById('input-pane-upload');
+        const inputPaneDirect = document.getElementById('input-pane-direct');
+        const btnDirectLoadCurrent = document.getElementById('btn-direct-load-current');
+        const btnDirectNew = document.getElementById('btn-direct-new');
+        const btnDirectExpand = document.getElementById('btn-direct-expand');
+        const btnDirectExpandLabel = document.getElementById('btn-direct-expand-label');
+        const directNewUnitInput = document.getElementById('direct-new-unit');
+        const btnDirectAddUnit = document.getElementById('btn-direct-add-unit');
+        const directNewExtraInput = document.getElementById('direct-new-extra');
+        const btnDirectAddExtra = document.getElementById('btn-direct-add-extra');
+        const directDefaultColegio = document.getElementById('direct-default-colegio');
+        const directDefaultCurso = document.getElementById('direct-default-curso');
+        const btnDirectAddRow = document.getElementById('btn-direct-add-row');
+        const directGridWrapper = document.getElementById('direct-grid-wrapper');
+        const directGridHead = document.getElementById('direct-grid-head');
+        const directGridBody = document.getElementById('direct-grid-body');
+        const directSchemaHint = document.getElementById('direct-schema-hint');
+        const directSaveMode = document.getElementById('direct-save-mode');
+        const btnDirectExportXlsx = document.getElementById('btn-direct-export-xlsx');
+        const btnDirectSave = document.getElementById('btn-direct-save');
+        const directFeedback = document.getElementById('direct-feedback');
+        const btnJumpDirectEdit = document.getElementById('btn-jump-direct-edit');
+        const btnTableExportXlsx = document.getElementById('btn-table-export-xlsx');
+
+        let directState = {
+            units: ['Unidad 1', 'Unidad 2'],
+            extraColumns: [],
+            rows: [],
+        };
+        let directExpanded = false;
+        let directBackdrop = null;
+
+        function escapeHtml(val) {
+            return String(val ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function setUploadFeedback(message, type = 'info') {
+            if (!message) {
+                uploadFeedback.className = 'hidden mt-3 px-3 py-2 rounded-xl text-xs font-medium';
+                uploadFeedback.textContent = '';
+                return;
+            }
+            const styles = {
+                success: 'mt-3 px-3 py-2 rounded-xl text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-800',
+                error: 'mt-3 px-3 py-2 rounded-xl text-xs font-medium bg-rose-50 border border-rose-200 text-rose-800',
+                info: 'mt-3 px-3 py-2 rounded-xl text-xs font-medium bg-slate-100 border border-slate-200 text-slate-700',
+            };
+            uploadFeedback.className = styles[type] || styles.info;
+            uploadFeedback.textContent = message;
+        }
+
+        function updateUploadModeNotice() {
+            if (uploadModeSelect.value === 'append') {
+                uploadModeNotice.className = "mt-3 px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-[11px] flex items-start gap-2";
+                uploadModeNoticeText.innerHTML = '<strong>Modo Agregar / Actualizar:</strong> se conservan los demás cursos ya cargados. Si volvés a subir un curso existente, se sobrescriben solo los datos de ese curso.';
+            } else {
+                uploadModeNotice.className = "mt-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-start gap-2";
+                uploadModeNoticeText.innerHTML = '<strong>Atención:</strong> en modo <strong>Reemplazar todo</strong>, cada vez que subís una planilla se sobrescriben los datos actuales y se pierde lo cargado anteriormente. Si querés conservar otros cursos, elegí <strong>Agregar / Actualizar cursos</strong>.';
+            }
+        }
+        uploadModeSelect.addEventListener('change', updateUploadModeNotice);
+
+        function showToast(message, type = 'info') {
+            const colors = {
+                success: 'bg-emerald-600 text-white border-emerald-700',
+                error: 'bg-rose-600 text-white border-rose-700',
+                info: 'bg-slate-900 text-white border-slate-800',
+            };
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl border shadow-lg text-xs font-medium max-w-sm transition-all ${colors[type] || colors.info}`;
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        const engine = new window.DocenteEngine();
+        window.docenteEngine = engine;
+        let hasGeminiServer = false;
+
+        async function checkAiAvailability() {
+            try {
+                const res = await fetch('/api/status', { credentials: 'same-origin' });
+                if (res.ok) {
+                    const data = await res.json();
+                    hasGeminiServer = Boolean(data.has_gemini);
+                }
+            } catch {
+                hasGeminiServer = false;
+            }
+            if (hasGeminiServer) {
+                badgeAi.className = "flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 rounded-lg text-xs font-medium text-indigo-700 border border-indigo-200";
+                badgeAiDot.className = "w-2 h-2 rounded-full bg-indigo-500 animate-pulse";
+                badgeAiText.innerText = "Gemini AI Conectado";
+            } else {
+                badgeAi.className = "flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg text-xs font-medium text-amber-700 border border-amber-200";
+                badgeAiDot.className = "w-2 h-2 rounded-full bg-amber-400";
+                badgeAiText.innerText = "Modo Analítico Local";
+            }
+        }
+
+        async function callGeminiServer(prompt, systemInstruction = '') {
+            if (!hasGeminiServer) return null;
+            try {
+                const res = await fetch('/api/ai', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, systemInstruction }),
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (data && data.ok && data.text) return data.text;
+                return null;
+            } catch {
+                return null;
+            }
+        }
+
+        function getFilterQuery() {
+            const params = new URLSearchParams();
+            if (filterColegio.value && filterColegio.value !== 'Todos') params.set('colegio', filterColegio.value);
+            if (filterCurso.value && filterCurso.value !== 'Todos') params.set('curso', filterCurso.value);
+            const qs = params.toString();
+            return qs ? `?${qs}` : '';
+        }
+
+        function switchToTab(tab) {
+            if (tab === 'chat') {
+                tabBtnChat.className = "flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 bg-white text-slate-900 shadow-sm transition-all";
+                tabBtnReport.className = "flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 transition-all";
+                tabContentChat.classList.remove('hidden');
+                tabContentReport.classList.add('hidden');
+            } else {
+                tabBtnReport.className = "flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 bg-white text-slate-900 shadow-sm transition-all";
+                tabBtnChat.className = "flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 transition-all";
+                tabContentReport.classList.remove('hidden');
+                tabContentChat.classList.add('hidden');
+            }
+        }
+
+        tabBtnChat.addEventListener('click', () => switchToTab('chat'));
+        tabBtnReport.addEventListener('click', () => switchToTab('report'));
+
+        planillaFileInput.addEventListener('change', (e) => {
+            const count = e.target.files.length;
+            if (count === 1) {
+                planillaFileLabel.innerHTML = `<span class="text-indigo-600">✓ ${e.target.files[0].name}</span>`;
+            } else if (count > 1) {
+                const names = Array.from(e.target.files).map(f => f.name).join(', ');
+                planillaFileLabel.innerHTML = `<span class="text-indigo-600">✓ ${count} archivos seleccionados: ${names}</span>`;
+            }
+        });
+
+        function populateSelect(selectEl, options, currentVal) {
+            selectEl.innerHTML = '<option value="Todos">Todos</option>';
+            options.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt;
+                o.textContent = opt;
+                selectEl.appendChild(o);
+            });
+            selectEl.value = options.includes(currentVal) ? currentVal : 'Todos';
+        }
+
+        async function fetchStatusAndData() {
+            const colegio = filterColegio.value && filterColegio.value !== 'Todos' ? filterColegio.value : null;
+            const curso = filterCurso.value && filterCurso.value !== 'Todos' ? filterCurso.value : null;
+            const stats = engine.getSummaryStats(colegio, curso);
+
+            if (engine.students.length > 0) {
+                badgeFiles.className = "flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg text-xs font-medium text-emerald-700 border border-emerald-200";
+                badgeFilesDot.className = "w-2 h-2 rounded-full bg-emerald-500";
+                badgeFilesText.innerText = engine.isDemo ? "Demo Cargada" : (engine.sourceFilename || "Planilla Activa");
+
+                populateSelect(filterColegio, stats.colegios || [], filterColegio.value);
+                populateSelect(filterCurso, stats.cursos || [], filterCurso.value);
+
+                updateStatsDisplay(stats);
+                renderCharts(stats);
+                await fetchStudents();
+            } else {
+                badgeFilesText.innerText = "Sin Datos";
+            }
+        }
+        window.refreshDashboardData = fetchStatusAndData;
+        window.showAppToast = showToast;
+
+        function updateStatsDisplay(stats) {
+            statTotal.innerText = stats.total_alumnos || 0;
+            statAprobacion.innerText = (stats.tasa_aprobacion || 0) + "%";
+            statAprobadosCount.innerText = `${stats.alumnos_aprobados || 0} de ${stats.total_alumnos || 0} con todo ≥ 7`;
+            statUnidades.innerText = stats.total_unidades || 0;
+            statPromedio.innerText = `Prom. gral: ${stats.promedio_general !== undefined ? stats.promedio_general.toFixed(2) : "0.0"}`;
+
+            const riesgo = stats.alumnos_en_riesgo || 0;
+            statRiesgo.innerText = riesgo;
+            cardRiesgo.className = riesgo > 0
+                ? "bg-rose-50 rounded-2xl border border-rose-200 p-4 shadow-sm flex flex-col"
+                : "bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col";
+        }
+
+        async function fetchStudents() {
+            const colegio = filterColegio.value && filterColegio.value !== 'Todos' ? filterColegio.value : null;
+            const curso = filterCurso.value && filterCurso.value !== 'Todos' ? filterCurso.value : null;
+            const students = engine.getStudentsList(colegio, curso);
+            const { units: viewUnits, uniform: uniformUnits } = engine.unitsForStudents(students);
+            const extraColumns = engine.getExtraColumnsForStudents(students);
+
+            cachedStudents = students;
+            cachedUnits = viewUnits;
+            cachedExtraColumns = extraColumns;
+            cachedUniformUnits = uniformUnits;
+
+            populateStudentReportSelect(cachedStudents);
+            renderStudentsTable(cachedStudents, cachedUnits, cachedUniformUnits, cachedExtraColumns);
+            renderRiskAlarms(cachedStudents);
+        }
+
+        function populateStudentReportSelect(students) {
+            const prev = reportStudentSelect.value;
+            reportStudentSelect.innerHTML = '<option value="">Seleccionar alumno para reporte individual...</option>';
+            students.forEach(s => {
+                const o = document.createElement('option');
+                o.value = s.id_alumno;
+                const tag = s.cant_intensificar > 0 ? ` — Intensifica ${s.cant_intensificar}` : ' — Aprobado';
+                o.textContent = `${s.apellido}, ${s.nombre} (${s.curso})${tag}`;
+                reportStudentSelect.appendChild(o);
+            });
+            if (prev) reportStudentSelect.value = prev;
+        }
+
+        function renderStudentsTable(students, units, uniformUnits = true, extraColumns = []) {
+            // Si todos los cursos visibles comparten las mismas unidades -> matriz por columnas.
+            // Si hay cursos con distintas unidades -> columna flexible con las unidades propias de cada alumno.
+            let headHtml = `<tr>
+                <th class="py-3 px-3.5 sticky left-0 bg-slate-50 z-20">Alumno (Apellido, Nombre)</th>
+                <th class="py-3 px-3">Colegio / Curso</th>`;
+            if (uniformUnits) {
+                units.forEach(u => {
+                    headHtml += `<th class="py-3 px-3 text-center" title="${escapeHtml(u)}">${escapeHtml(u)}</th>`;
+                });
+            } else {
+                headHtml += `<th class="py-3 px-3">Unidades del Curso (Ex / Recu)</th>`;
+            }
+            extraColumns.forEach(exCol => {
+                headHtml += `<th class="py-3 px-3 text-left" title="${escapeHtml(exCol)}">${escapeHtml(exCol)}</th>`;
+            });
+            headHtml += `
+                <th class="py-3 px-3 text-center">Prom.</th>
+                <th class="py-3 px-3 text-center">Estado</th>
+                <th class="py-3 px-3 text-center">Reporte</th>
+            </tr>`;
+            studentsTableHead.innerHTML = headHtml;
+
+            studentsTableBody.innerHTML = "";
+            if (students.length === 0) {
+                const colSpan = (uniformUnits ? units.length + 5 : 6) + extraColumns.length;
+                studentsTableBody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-8 text-slate-400">No se encontraron alumnos para los filtros actuales.</td></tr>`;
+                return;
+            }
+
+            students.forEach(s => {
+                const row = document.createElement('tr');
+                row.className = "hover:bg-slate-50/70 transition-colors";
+
+                const estadoClass = s.estado === 'Aprobado'
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-rose-50 text-rose-700 border border-rose-200";
+
+                let cellsHtml = `
+                    <td class="py-2.5 px-3.5 sticky left-0 bg-white z-10 border-r border-slate-100">
+                        <div class="font-semibold text-slate-900">${escapeHtml(s.apellido)}, ${escapeHtml(s.nombre)}</div>
+                    </td>
+                    <td class="py-2.5 px-3">
+                        <div class="font-medium text-slate-700">${escapeHtml(s.curso)}</div>
+                        <div class="text-[10px] text-slate-400">${escapeHtml(s.colegio)}</div>
+                    </td>`;
+
+                if (uniformUnits) {
+                    s.unidades.forEach(u => {
+                        const exTxt = u.examen !== null ? u.examen : 'Aus';
+                        const rcTxt = u.recu !== null ? u.recu : '—';
+                        const cellTone = u.intensifica
+                            ? "bg-rose-50/70 text-rose-700 border border-rose-100"
+                            : "bg-emerald-50/50 text-emerald-700 border border-emerald-100";
+                        cellsHtml += `
+                            <td class="py-2 px-2 text-center" title="${escapeHtml(u.motivo)}">
+                                <div class="inline-flex flex-col items-center px-2 py-1 rounded-lg font-mono tabular-nums text-[10px] leading-tight ${cellTone}">
+                                    <span>Ex: <strong>${exTxt}</strong></span>
+                                    <span class="text-[9px] opacity-80">Recu: ${rcTxt}</span>
+                                </div>
+                            </td>`;
+                    });
+                } else {
+                    const chipsHtml = s.unidades.map(u => {
+                        const exTxt = u.examen !== null ? u.examen : 'Aus';
+                        const rcTxt = u.recu !== null ? u.recu : '—';
+                        const chipTone = u.intensifica
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-200";
+                        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px]" title="${escapeHtml(u.motivo)}">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md ${chipTone}">
+                                <strong class="font-sans">${escapeHtml(u.unidad)}:</strong>
+                                <span class="font-mono tabular-nums">${exTxt}/${rcTxt}</span>
+                            </span>
+                        </span>`;
+                    }).join(' ');
+                    cellsHtml += `<td class="py-2 px-3 whitespace-normal"><div class="flex flex-wrap gap-1 max-w-md">${chipsHtml}</div></td>`;
+                }
+
+                extraColumns.forEach(exCol => {
+                    const val = (s.extras && s.extras[exCol]) ? s.extras[exCol] : '—';
+                    cellsHtml += `<td class="py-2.5 px-3 text-xs text-slate-600 max-w-[180px] truncate" title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
+                });
+
+                cellsHtml += `
+                    <td class="py-2.5 px-3 text-center font-mono tabular-nums font-bold text-slate-900">${s.promedio}</td>
+                    <td class="py-2.5 px-3 text-center">
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${estadoClass}">
+                            ${s.estado === 'Aprobado' ? 'Aprobado' : `Intensifica (${s.cant_intensificar})`}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-3 text-center">
+                        <button class="btn-row-report px-2.5 py-1 bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-lg text-[10px] font-semibold transition-colors" data-id="${s.id_alumno}">
+                            Ver informe
+                        </button>
+                    </td>`;
+
+                row.innerHTML = cellsHtml;
+                row.querySelector('.btn-row-report').addEventListener('click', () => {
+                    openStudentReport(s.id_alumno);
+                });
+                studentsTableBody.appendChild(row);
+            });
+        }
+
+        function renderRiskAlarms(students) {
+            riskList.innerHTML = "";
+            const risks = students.filter(s => s.en_riesgo);
+
+            if (risks.length === 0) {
+                riskList.innerHTML = `
+                    <div class="bg-emerald-50/60 text-emerald-800 border border-emerald-100 rounded-xl p-4 text-center text-xs flex flex-col items-center gap-1">
+                        <i data-lucide="sparkles" class="w-5 h-5 text-emerald-500"></i>
+                        <span class="font-bold">¡Todo el curso aprobado!</span>
+                        Ningún alumno tiene unidades pendientes de intensificación (todas ≥ 7).
+                    </div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            risks.forEach(r => {
+                const badgeStyle = r.nivel_riesgo === 'Alto'
+                    ? "bg-rose-100 text-rose-700 font-semibold"
+                    : "bg-amber-100 text-amber-700 font-medium";
+
+                const unitPills = r.unidades_intensificar
+                    .map(u => `<span class="inline-block px-2 py-0.5 bg-white border border-rose-200 text-rose-700 rounded text-[10px] font-medium">${u.unidad}</span>`)
+                    .join(' ');
+
+                const div = document.createElement('div');
+                div.className = "bg-rose-50/30 border border-rose-100 hover:border-rose-200 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all";
+                div.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="font-bold text-slate-900 text-xs">${escapeHtml(r.apellido ? `${r.apellido}, ${r.nombre}` : r.nombre_completo)}</span>
+                            <span class="text-[10px] text-slate-500">${escapeHtml(r.colegio)} · ${escapeHtml(r.curso)}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[9px] ${badgeStyle}">${r.cant_intensificar} unidad(es)</span>
+                        </div>
+                        <div class="flex flex-wrap gap-1 pt-0.5">${unitPills}</div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button class="btn-risk-report text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-all">
+                            <i data-lucide="file-text" class="w-3 h-3"></i>
+                            Reporte
+                        </button>
+                        <button class="btn-risk-ai text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 border border-slate-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-all">
+                            <i data-lucide="message-circle" class="w-3 h-3"></i>
+                            IA
+                        </button>
+                    </div>`;
+
+                div.querySelector('.btn-risk-report').addEventListener('click', () => openStudentReport(r.id_alumno));
+                div.querySelector('.btn-risk-ai').addEventListener('click', () => {
+                    switchToTab('chat');
+                    askChatbot(`Analizá la situación de ${r.nombre_completo} (${r.curso}): detallá qué unidades debe intensificar, sus notas de examen y recuperatorio, y proponé estrategias concretas.`);
+                });
+
+                riskList.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
+        function renderCharts(stats) {
+            if (chartUnits) chartUnits.destroy();
+            if (chartStatus) chartStatus.destroy();
+
+            const byUnit = stats.intensificacion_por_unidad || [];
+            const ctxUnits = document.getElementById('chart-units').getContext('2d');
+            chartUnits = new Chart(ctxUnits, {
+                type: 'bar',
+                data: {
+                    labels: byUnit.map(u => u.unidad),
+                    datasets: [
+                        {
+                            label: 'Aprobados (≥ 7)',
+                            data: byUnit.map(u => u.cantidad_aprobados),
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                            borderRadius: 5,
+                        },
+                        {
+                            label: 'Intensifican (< 7)',
+                            data: byUnit.map(u => u.cantidad_intensifican),
+                            backgroundColor: 'rgba(244, 63, 94, 0.85)',
+                            borderRadius: 5,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                    },
+                    scales: {
+                        x: { stacked: true, ticks: { font: { size: 10 } } },
+                        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+                    }
+                }
+            });
+
+            const ctxStatus = document.getElementById('chart-status').getContext('2d');
+            chartStatus = new Chart(ctxStatus, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Aprobados', 'Intensifican'],
+                    datasets: [{
+                        data: [stats.alumnos_aprobados || 0, stats.alumnos_en_riesgo || 0],
+                        backgroundColor: ['rgba(16, 185, 129, 0.85)', 'rgba(244, 63, 94, 0.85)'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '62%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                    }
+                }
+            });
+        }
+
+        // Filtros
+        filterColegio.addEventListener('change', fetchStatusAndData);
+        filterCurso.addEventListener('change', fetchStatusAndData);
+
+        tableSearch.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase().trim();
+            const filtered = cachedStudents.filter(s =>
+                s.nombre_completo.toLowerCase().includes(term) ||
+                s.curso.toLowerCase().includes(term) ||
+                s.colegio.toLowerCase().includes(term)
+            );
+            renderStudentsTable(filtered, cachedUnits, cachedUniformUnits, cachedExtraColumns);
+        });
+
+        // === CARGA DIRECTA EN PANTALLA Y COLUMNAS EXTRA ===
+        function setDirectFeedback(message, type = 'info') {
+            if (!message) {
+                directFeedback.className = 'hidden px-3 py-2 rounded-xl text-xs font-medium';
+                directFeedback.textContent = '';
+                return;
+            }
+            const styles = {
+                success: 'px-3 py-2 rounded-xl text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-800',
+                error: 'px-3 py-2 rounded-xl text-xs font-medium bg-rose-50 border border-rose-200 text-rose-800',
+                info: 'px-3 py-2 rounded-xl text-xs font-medium bg-slate-100 border border-slate-200 text-slate-700',
+            };
+            directFeedback.className = styles[type] || styles.info;
+            directFeedback.textContent = message;
+        }
+
+        function parseGradeLocal(val) {
+            if (val === null || val === undefined) return null;
+            const s = String(val).trim().replace(',', '.');
+            if (!s || ['aus', 'ausente', 'aus.', '-', '—', 'n/a', 's/n'].includes(s.toLowerCase())) return null;
+            const num = Number(s);
+            return Number.isFinite(num) ? Math.round(num * 100) / 100 : null;
+        }
+
+        function computeRowStatusLocal(row) {
+            let intensificaCount = 0;
+            directState.units.forEach(u => {
+                const g = (row.grades && row.grades[u]) || {};
+                const ex = parseGradeLocal(g.examen);
+                const rc = parseGradeLocal(g.recu);
+                const ok = (ex !== null && ex >= 6.75) || (rc !== null && rc >= 6.75);
+                if (!ok) intensificaCount++;
+            });
+            return intensificaCount === 0
+                ? { text: 'Aprobado', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
+                : { text: `Intensifica (${intensificaCount})`, cls: 'bg-rose-50 text-rose-700 border border-rose-200' };
+        }
+
+        function createBlankDirectRow() {
+            const grades = {};
+            directState.units.forEach(u => { grades[u] = { examen: '', recu: '' }; });
+            const extras = {};
+            directState.extraColumns.forEach(ex => { extras[ex] = ''; });
+            return {
+                colegio: directDefaultColegio.value.trim() || 'Sin especificar',
+                curso: directDefaultCurso.value.trim() || 'Sin curso',
+                nombre: '',
+                apellido: '',
+                grades,
+                extras,
+            };
+        }
+
+        function loadCurrentIntoDirectEditor() {
+            directSchemaHint.classList.add('hidden');
+            if (!cachedStudents.length) {
+                startBlankDirectSheet();
+                return;
+            }
+            let sourceStudents = cachedStudents;
+            let sourceUnits = [...cachedUnits];
+            let sourceExtras = [...cachedExtraColumns];
+
+            // Si hay varios cursos con unidades diferentes, editamos el primero para no mezclar columnas de cursos distintos
+            if (!cachedUniformUnits && sourceStudents.length > 0) {
+                const targetColegio = sourceStudents[0].colegio;
+                const targetCurso = sourceStudents[0].curso;
+                sourceStudents = cachedStudents.filter(s => s.colegio === targetColegio && s.curso === targetCurso);
+                sourceUnits = [...(sourceStudents[0].unidades_nombres || [])];
+                const exSet = new Set();
+                sourceStudents.forEach(s => Object.keys(s.extras || {}).forEach(k => exSet.add(k)));
+                sourceExtras = Array.from(exSet);
+                directSaveMode.value = 'append';
+                directSchemaHint.textContent = `Se cargó el curso "${targetCurso}" (${targetColegio}) en modo Agregar / Actualizar para conservar tus demás cursos con sus propias unidades.`;
+                directSchemaHint.classList.remove('hidden');
+            }
+
+            if (sourceStudents[0]) {
+                directDefaultColegio.value = sourceStudents[0].colegio || '';
+                directDefaultCurso.value = sourceStudents[0].curso || '';
+            }
+
+            directState = {
+                units: sourceUnits.length ? sourceUnits : ['Unidad 1'],
+                extraColumns: sourceExtras,
+                rows: sourceStudents.map(s => {
+                    const grades = {};
+                    (sourceUnits.length ? sourceUnits : ['Unidad 1']).forEach(uName => {
+                        const found = (s.unidades || []).find(u => u.unidad === uName);
+                        grades[uName] = {
+                            examen: found && found.examen !== null ? String(found.examen) : '',
+                            recu: found && found.recu !== null ? String(found.recu) : '',
+                        };
+                    });
+                    const extras = {};
+                    sourceExtras.forEach(ex => {
+                        extras[ex] = (s.extras && s.extras[ex] !== undefined) ? String(s.extras[ex]) : '';
+                    });
+                    return {
+                        colegio: s.colegio || '',
+                        curso: s.curso || '',
+                        nombre: s.nombre || '',
+                        apellido: s.apellido || '',
+                        grades,
+                        extras,
+                    };
+                }),
+            };
+            renderDirectGrid();
+            setDirectFeedback(`Se cargaron ${directState.rows.length} alumno(s) en el editor.`, 'info');
+        }
+
+        function startBlankDirectSheet() {
+            directSchemaHint.classList.add('hidden');
+            directState = {
+                units: ['Unidad 1', 'Unidad 2'],
+                extraColumns: [],
+                rows: [],
+            };
+            directState.rows.push(createBlankDirectRow());
+            directState.rows.push(createBlankDirectRow());
+            renderDirectGrid();
+            setDirectFeedback("Planilla nueva lista. Cargá los alumnos y agregá las unidades o columnas extra que necesites.", "info");
+        }
+
+        function renderDirectGrid() {
+            // Header
+            let headRow1 = `<tr class="text-[10px] uppercase tracking-wider bg-slate-100/80 text-slate-600">
+                <th rowspan="2" class="py-2 px-2 border-b border-r border-slate-200 sticky left-0 bg-slate-100 z-30 min-w-[115px]">Apellido</th>
+                <th rowspan="2" class="py-2 px-2 border-b border-r border-slate-200 min-w-[115px]">Nombre</th>
+                <th rowspan="2" class="py-2 px-2 border-b border-r border-slate-200 min-w-[125px]">Colegio</th>
+                <th rowspan="2" class="py-2 px-2 border-b border-r border-slate-200 min-w-[78px]">Curso</th>`;
+
+            directState.units.forEach((u, uIdx) => {
+                headRow1 += `<th colspan="2" class="py-1.5 px-2 border-b border-r border-slate-200 text-center bg-indigo-50/70 text-indigo-900">
+                    <div class="flex items-center justify-between gap-1.5">
+                        <span class="truncate max-w-[130px] font-bold normal-case text-[11px]" title="${escapeHtml(u)}">${escapeHtml(u)}</span>
+                        ${directState.units.length > 1 ? `<button type="button" class="btn-del-unit text-slate-400 hover:text-rose-600 font-bold px-1" data-unit-idx="${uIdx}" title="Quitar unidad">×</button>` : ''}
+                    </div>
+                </th>`;
+            });
+
+            directState.extraColumns.forEach((ex, exIdx) => {
+                headRow1 += `<th rowspan="2" class="py-1.5 px-2 border-b border-r border-slate-200 bg-amber-50/60 text-amber-900 min-w-[130px]">
+                    <div class="flex items-center justify-between gap-1.5">
+                        <span class="truncate max-w-[110px] font-bold normal-case text-[11px]" title="${escapeHtml(ex)}">${escapeHtml(ex)}</span>
+                        <button type="button" class="btn-del-extra text-slate-400 hover:text-rose-600 font-bold px-1" data-extra-idx="${exIdx}" title="Quitar columna extra">×</button>
+                    </div>
+                </th>`;
+            });
+
+            headRow1 += `
+                <th rowspan="2" class="py-2 px-2 border-b border-r border-slate-200 text-center min-w-[100px]">Estado</th>
+                <th rowspan="2" class="py-2 px-2 border-b border-slate-200 text-center w-9"></th>
+            </tr>`;
+
+            let headRow2 = `<tr class="text-[9px] uppercase tracking-wider bg-slate-50 text-slate-500">`;
+            directState.units.forEach(() => {
+                headRow2 += `
+                    <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[62px]">Examen</th>
+                    <th class="py-1 px-1.5 border-b border-r border-slate-200 text-center min-w-[62px]">Recu</th>`;
+            });
+            headRow2 += `</tr>`;
+
+            directGridHead.innerHTML = headRow1 + headRow2;
+
+            directGridHead.querySelectorAll('.btn-del-unit').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.dataset.unitIdx);
+                    const unitName = directState.units[idx];
+                    directState.units.splice(idx, 1);
+                    directState.rows.forEach(r => { if (r.grades) delete r.grades[unitName]; });
+                    renderDirectGrid();
+                });
+            });
+
+            directGridHead.querySelectorAll('.btn-del-extra').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.dataset.extraIdx);
+                    const exName = directState.extraColumns[idx];
+                    directState.extraColumns.splice(idx, 1);
+                    directState.rows.forEach(r => { if (r.extras) delete r.extras[exName]; });
+                    renderDirectGrid();
+                });
+            });
+
+            // Body
+            directGridBody.innerHTML = '';
+            if (directState.rows.length === 0) {
+                directState.rows.push(createBlankDirectRow());
+            }
+
+            directState.rows.forEach((row, rIdx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50/70';
+
+                let html = `
+                    <td class="p-1.5 border-r border-slate-100 sticky left-0 bg-white z-10">
+                        <input type="text" data-field="apellido" data-row="${rIdx}" value="${escapeHtml(row.apellido)}" placeholder="Apellido" class="direct-cell-input w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:border-indigo-500 outline-none">
+                    </td>
+                    <td class="p-1.5 border-r border-slate-100">
+                        <input type="text" data-field="nombre" data-row="${rIdx}" value="${escapeHtml(row.nombre)}" placeholder="Nombre" class="direct-cell-input w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:border-indigo-500 outline-none">
+                    </td>
+                    <td class="p-1.5 border-r border-slate-100">
+                        <input type="text" data-field="colegio" data-row="${rIdx}" value="${escapeHtml(row.colegio)}" placeholder="Colegio" class="direct-cell-input w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:border-indigo-500 outline-none">
+                    </td>
+                    <td class="p-1.5 border-r border-slate-100">
+                        <input type="text" data-field="curso" data-row="${rIdx}" value="${escapeHtml(row.curso)}" placeholder="Curso" class="direct-cell-input w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:border-indigo-500 outline-none">
+                    </td>`;
+
+                directState.units.forEach(uName => {
+                    const slot = (row.grades && row.grades[uName]) || { examen: '', recu: '' };
+                    const exVal = slot.examen ?? '';
+                    const rcVal = slot.recu ?? '';
+                    const exNum = parseGradeLocal(exVal);
+                    const rcNum = parseGradeLocal(rcVal);
+                    const exClass = exNum === null ? 'border-slate-200' : (exNum >= 6.75 ? 'border-emerald-300 bg-emerald-50/40 text-emerald-900' : 'border-rose-300 bg-rose-50/40 text-rose-900');
+                    const rcClass = rcNum === null ? 'border-slate-200' : (rcNum >= 6.75 ? 'border-emerald-300 bg-emerald-50/40 text-emerald-900' : 'border-rose-300 bg-rose-50/40 text-rose-900');
+                    html += `
+                        <td class="p-1 border-r border-slate-100 text-center">
+                            <input type="text" inputmode="decimal" data-unit="${escapeHtml(uName)}" data-slot="examen" data-row="${rIdx}" value="${escapeHtml(exVal)}" placeholder="—" class="direct-grade-input w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${exClass}">
+                        </td>
+                        <td class="p-1 border-r border-slate-100 text-center">
+                            <input type="text" inputmode="decimal" data-unit="${escapeHtml(uName)}" data-slot="recu" data-row="${rIdx}" value="${escapeHtml(rcVal)}" placeholder="—" class="direct-grade-input w-14 px-1.5 py-1 text-center font-mono tabular-nums text-xs border rounded-md focus:border-indigo-500 outline-none ${rcClass}">
+                        </td>`;
+                });
+
+                directState.extraColumns.forEach(exName => {
+                    const exVal = (row.extras && row.extras[exName]) || '';
+                    html += `
+                        <td class="p-1.5 border-r border-slate-100">
+                            <input type="text" data-extra="${escapeHtml(exName)}" data-row="${rIdx}" value="${escapeHtml(exVal)}" placeholder="..." class="direct-extra-input w-full px-2 py-1 text-xs border border-slate-200 rounded-md focus:border-indigo-500 outline-none">
+                        </td>`;
+                });
+
+                const st = computeRowStatusLocal(row);
+                html += `
+                    <td class="p-1.5 border-r border-slate-100 text-center">
+                        <span id="direct-row-status-${rIdx}" class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.cls}">${st.text}</span>
+                    </td>
+                    <td class="p-1.5 text-center">
+                        <button type="button" class="btn-del-direct-row text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded" data-row="${rIdx}" title="Eliminar fila">×</button>
+                    </td>`;
+
+                tr.innerHTML = html;
+                directGridBody.appendChild(tr);
+            });
+
+            // Eventos sin re-render completo al escribir para mantener foco y Tab fluido
+            directGridBody.querySelectorAll('.direct-cell-input').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const rIdx = Number(inp.dataset.row);
+                    directState.rows[rIdx][inp.dataset.field] = inp.value;
+                });
+            });
+
+            directGridBody.querySelectorAll('.direct-grade-input').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const rIdx = Number(inp.dataset.row);
+                    const uName = inp.dataset.unit;
+                    const slot = inp.dataset.slot;
+                    if (!directState.rows[rIdx].grades[uName]) {
+                        directState.rows[rIdx].grades[uName] = { examen: '', recu: '' };
+                    }
+                    directState.rows[rIdx].grades[uName][slot] = inp.value;
+                    const num = parseGradeLocal(inp.value);
+                    inp.classList.remove('border-slate-200', 'border-emerald-300', 'bg-emerald-50/40', 'text-emerald-900', 'border-rose-300', 'bg-rose-50/40', 'text-rose-900');
+                    if (num === null) {
+                        inp.classList.add('border-slate-200');
+                    } else if (num >= 6.75) {
+                        inp.classList.add('border-emerald-300', 'bg-emerald-50/40', 'text-emerald-900');
+                    } else {
+                        inp.classList.add('border-rose-300', 'bg-rose-50/40', 'text-rose-900');
+                    }
+                    const st = computeRowStatusLocal(directState.rows[rIdx]);
+                    const badge = document.getElementById(`direct-row-status-${rIdx}`);
+                    if (badge) {
+                        badge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.cls}`;
+                        badge.textContent = st.text;
+                    }
+                });
+            });
+
+            directGridBody.querySelectorAll('.direct-extra-input').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const rIdx = Number(inp.dataset.row);
+                    const exName = inp.dataset.extra;
+                    if (!directState.rows[rIdx].extras) directState.rows[rIdx].extras = {};
+                    directState.rows[rIdx].extras[exName] = inp.value;
+                });
+            });
+
+            directGridBody.querySelectorAll('.btn-del-direct-row').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const rIdx = Number(btn.dataset.row);
+                    directState.rows.splice(rIdx, 1);
+                    renderDirectGrid();
+                });
+            });
+        }
+
+        function switchInputMode(mode) {
+            if (mode === 'direct') {
+                modeTabDirect.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-sm transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5';
+                modeTabUpload.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5';
+                inputPaneUpload.classList.add('hidden');
+                inputPaneDirect.classList.remove('hidden');
+                inputPaneDirect.classList.add('flex');
+                if (directState.rows.length === 0) {
+                    loadCurrentIntoDirectEditor();
+                }
+            } else {
+                if (directExpanded) toggleDirectExpand(false);
+                modeTabUpload.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-sm transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5';
+                modeTabDirect.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5';
+                inputPaneDirect.classList.add('hidden');
+                inputPaneDirect.classList.remove('flex');
+                inputPaneUpload.classList.remove('hidden');
+            }
+        }
+
+        function toggleDirectExpand(forceState = null) {
+            directExpanded = forceState !== null ? forceState : !directExpanded;
+            if (directExpanded) {
+                directBackdrop = document.createElement('div');
+                directBackdrop.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-[1px] z-[65]';
+                directBackdrop.addEventListener('click', () => toggleDirectExpand(false));
+                document.body.appendChild(directBackdrop);
+                dataManagerCard.className = 'fixed inset-3 sm:inset-6 z-[70] bg-white rounded-2xl border border-slate-200 p-5 shadow-2xl flex flex-col';
+                directGridWrapper.classList.remove('max-h-[340px]');
+                directGridWrapper.classList.add('flex-1', 'min-h-0');
+                inputPaneDirect.classList.add('flex-1', 'min-h-0');
+                btnDirectExpandLabel.textContent = 'Contraer editor';
+            } else {
+                if (directBackdrop) {
+                    directBackdrop.remove();
+                    directBackdrop = null;
+                }
+                dataManagerCard.className = 'bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col';
+                directGridWrapper.classList.add('max-h-[340px]');
+                directGridWrapper.classList.remove('flex-1', 'min-h-0');
+                inputPaneDirect.classList.remove('flex-1', 'min-h-0');
+                btnDirectExpandLabel.textContent = 'Expandir editor';
+            }
+        }
+
+        modeTabUpload.addEventListener('click', () => switchInputMode('upload'));
+        modeTabDirect.addEventListener('click', () => switchInputMode('direct'));
+        btnDirectExpand.addEventListener('click', () => toggleDirectExpand());
+        btnDirectLoadCurrent.addEventListener('click', loadCurrentIntoDirectEditor);
+        btnDirectNew.addEventListener('click', startBlankDirectSheet);
+
+        btnJumpDirectEdit.addEventListener('click', () => {
+            switchInputMode('direct');
+            loadCurrentIntoDirectEditor();
+            dataManagerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
+        document.getElementById('btn-direct-sort-surname').addEventListener('click', () => {
+            directState.rows.sort((a, b) => {
+                const aAp = (a.apellido || '').trim();
+                const bAp = (b.apellido || '').trim();
+                if (!aAp && bAp) return 1;
+                if (aAp && !bAp) return -1;
+                const cmpAp = aAp.localeCompare(bAp, 'es', { sensitivity: 'base' });
+                if (cmpAp !== 0) return cmpAp;
+                return (a.nombre || '').trim().localeCompare((b.nombre || '').trim(), 'es', { sensitivity: 'base' });
+            });
+            renderDirectGrid();
+            showToast("Planilla ordenada alfabéticamente por apellido.", "success");
+        });
+
+        btnDirectAddRow.addEventListener('click', () => {
+            directState.rows.push(createBlankDirectRow());
+            renderDirectGrid();
+            const lastInput = directGridBody.querySelector(`input[data-row="${directState.rows.length - 1}"][data-field="apellido"]`);
+            if (lastInput) lastInput.focus();
+        });
+
+        function addDirectUnit() {
+            const name = directNewUnitInput.value.trim();
+            if (!name) {
+                showToast("Escribí el nombre de la unidad a agregar.", "error");
+                return;
+            }
+            if (directState.units.some(u => u.toLowerCase() === name.toLowerCase())) {
+                showToast(`La unidad "${name}" ya existe en la planilla.`, "error");
+                return;
+            }
+            directState.units.push(name);
+            directState.rows.forEach(r => {
+                if (!r.grades) r.grades = {};
+                r.grades[name] = { examen: '', recu: '' };
+            });
+            directNewUnitInput.value = '';
+            renderDirectGrid();
+            showToast(`Unidad "${name}" agregada (Examen y Recu).`, "success");
+        }
+        btnDirectAddUnit.addEventListener('click', addDirectUnit);
+        directNewUnitInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addDirectUnit(); } });
+
+        function addDirectExtraColumn() {
+            const name = directNewExtraInput.value.trim();
+            if (!name) {
+                showToast("Escribí el nombre de la columna extra (ej: Observaciones).", "error");
+                return;
+            }
+            if (directState.extraColumns.some(c => c.toLowerCase() === name.toLowerCase())) {
+                showToast(`La columna "${name}" ya existe.`, "error");
+                return;
+            }
+            directState.extraColumns.push(name);
+            directState.rows.forEach(r => {
+                if (!r.extras) r.extras = {};
+                r.extras[name] = '';
+            });
+            directNewExtraInput.value = '';
+            renderDirectGrid();
+            showToast(`Columna extra "${name}" agregada.`, "success");
+        }
+        btnDirectAddExtra.addEventListener('click', addDirectExtraColumn);
+        directNewExtraInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addDirectExtraColumn(); } });
+
+        btnDirectSave.addEventListener('click', async () => {
+            const validRows = directState.rows.filter(r => (r.nombre || '').trim() || (r.apellido || '').trim());
+            if (validRows.length === 0) {
+                const msg = "Cargá al menos un alumno con Nombre o Apellido antes de guardar.";
+                showToast(msg, "error");
+                setDirectFeedback(msg, "error");
+                return;
+            }
+            btnDirectSave.disabled = true;
+            const origHtml = btnDirectSave.innerHTML;
+            btnDirectSave.innerHTML = `<i class="w-3.5 h-3.5 animate-spin border-2 border-white border-t-transparent rounded-full"></i> Guardando...`;
+            setDirectFeedback("Aplicando datos al tablero...", "info");
+
+            try {
+                const mode = directSaveMode.value || 'replace';
+                const result = engine.updateFromDirectData({
+                    mode,
+                    units: directState.units,
+                    extraColumns: directState.extraColumns,
+                    rows: validRows,
+                });
+                if (result.ok) {
+                    showToast(result.message, "success");
+                    setDirectFeedback("✓ " + result.message, "success");
+                    filterColegio.value = "Todos";
+                    filterCurso.value = "Todos";
+                    await fetchStatusAndData();
+                    if (window.cloudBridge && result.courses_snapshot) {
+                        await window.cloudBridge.syncAfterMutation(result.courses_snapshot, mode);
+                    }
+                    if (directExpanded) toggleDirectExpand(false);
+                } else {
+                    const errMsg = result.error || "No se pudieron guardar los datos.";
+                    showToast(errMsg, "error");
+                    setDirectFeedback("Error: " + errMsg, "error");
+                }
+            } finally {
+                btnDirectSave.disabled = false;
+                btnDirectSave.innerHTML = origHtml;
+                lucide.createIcons();
+            }
+        });
+
+        function exportCurrentExcel() {
+            try {
+                const colegio = filterColegio.value && filterColegio.value !== 'Todos' ? filterColegio.value : null;
+                const curso = filterCurso.value && filterCurso.value !== 'Todos' ? filterCurso.value : null;
+                engine.downloadExcelExport(colegio, curso);
+                showToast("Planilla actual descargada en formato Excel (.xlsx).", "success");
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || "No se pudo exportar el Excel en este momento.", "error");
+            }
+        }
+        btnDirectExportXlsx.addEventListener('click', exportCurrentExcel);
+        btnTableExportXlsx.addEventListener('click', exportCurrentExcel);
+
+        // Subir 1 o múltiples archivos (CSV o Excel multipestaña)
+        btnSubmitUpload.addEventListener('click', async () => {
+            if (planillaFileInput.files.length === 0) {
+                const msg = "Seleccioná al menos un archivo CSV o Excel primero.";
+                showToast(msg, "error");
+                setUploadFeedback(msg, "error");
+                return;
+            }
+            const uploadModeVal = uploadModeSelect.value || 'replace';
+
+            btnSubmitUpload.innerHTML = `<i class="w-3.5 h-3.5 animate-spin border-2 border-white border-t-transparent rounded-full mr-1"></i> Procesando...`;
+            btnSubmitUpload.disabled = true;
+            setUploadFeedback("Procesando archivo(s)...", "info");
+
+            try {
+                const result = await engine.updateFromFiles(planillaFileInput.files, uploadModeVal);
+                if (result.ok) {
+                    showToast(result.message, "success");
+                    setUploadFeedback("✓ " + result.message, "success");
+                    filterColegio.value = "Todos";
+                    filterCurso.value = "Todos";
+                    planillaFileInput.value = "";
+                    planillaFileLabel.innerText = "Hacé clic o arrastrá 1 o varios archivos (Excel multipestaña o CSV)";
+                    await fetchStatusAndData();
+                    if (window.cloudBridge && result.courses_snapshot) {
+                        await window.cloudBridge.syncAfterMutation(result.courses_snapshot, uploadModeVal);
+                    }
+                } else {
+                    const errMsg = result.error || "No se pudo procesar la planilla.";
+                    showToast(errMsg, "error");
+                    setUploadFeedback("Error: " + errMsg, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                const errMsg = err.message || "Error leyendo los archivos.";
+                showToast(errMsg, "error");
+                setUploadFeedback("Error: " + errMsg, "error");
+            } finally {
+                btnSubmitUpload.innerHTML = `<i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> Procesar`;
+                btnSubmitUpload.disabled = false;
+                lucide.createIcons();
+            }
+        });
+
+        function downloadTemplate(fmt) {
+            try {
+                const filename = engine.downloadTemplate(fmt);
+                showToast(`Plantilla ${filename} descargada.`, "success");
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || "No se pudo generar la plantilla.", "error");
+            }
+        }
+
+        document.getElementById('btn-tpl-multi').addEventListener('click', () => downloadTemplate('multi-xlsx'));
+        document.getElementById('btn-tpl-xlsx').addEventListener('click', () => downloadTemplate('single-xlsx'));
+        document.getElementById('btn-tpl-csv').addEventListener('click', () => downloadTemplate('csv'));
+
+        // Cargar demo
+        btnResetDemo.addEventListener('click', async () => {
+            btnResetDemo.disabled = true;
+            try {
+                await engine.loadDemoData(true);
+                filterColegio.value = "Todos";
+                filterCurso.value = "Todos";
+                showToast("Planilla demo restaurada con éxito.", "success");
+                await fetchStatusAndData();
+            } finally {
+                btnResetDemo.disabled = false;
+            }
+        });
+
+        // Reporte individual de un alumno
+        async function openStudentReport(studentId) {
+            if (!studentId) {
+                showToast("Elegí un alumno de la lista.", "error");
+                return;
+            }
+            switchToTab('report');
+            reportStudentSelect.value = studentId;
+            const useAi = chkStudentAi.checked;
+
+            const student = engine.getStudentById(studentId);
+            if (!student) {
+                showToast("Alumno no encontrado.", "error");
+                return;
+            }
+
+            btnStudentReport.disabled = true;
+            btnStudentReport.innerHTML = `<i class="w-3.5 h-3.5 animate-spin border-2 border-white border-t-transparent rounded-full"></i> Generando...`;
+
+            try {
+                let fullReport = engine.buildStudentIntensificationMarkdown(student);
+                if (useAi && hasGeminiServer) {
+                    const aiExtra = await callGeminiServer(
+                        `Basándote únicamente en el siguiente informe exacto, redactá un breve apartado adicional llamado "## Sugerencias Pedagógicas para la Intensificación" (máximo 4 puntos concretos y empáticos para el alumno/familia). No inventes notas ni modifiques los datos.\n\n${fullReport}`,
+                        'Sos un docente orientador pedagógico claro, respetuoso y preciso.'
+                    );
+                    if (aiExtra) {
+                        fullReport += '\n\n' + aiExtra;
+                    }
+                }
+                lastReportMarkdown = fullReport;
+                lastReportPages = [lastReportMarkdown];
+                const safeName = (student.nombre_completo || "alumno").toLowerCase().replace(/\s+/g, '_');
+                lastReportFilename = `intensificacion_${safeName}.md`;
+                reportTitleBar.textContent = `Reporte Individual — ${student.nombre_completo}`;
+                reportEmptyState.classList.add('hidden');
+                reportPaper.classList.remove('hidden');
+                reportPaper.innerHTML = marked.parse(lastReportMarkdown);
+                showToast(`Reporte de ${student.nombre_completo} listo.`, "success");
+            } finally {
+                btnStudentReport.disabled = false;
+                btnStudentReport.innerHTML = `<i data-lucide="user-check" class="w-3.5 h-3.5"></i> Reporte Alumno`;
+                lucide.createIcons();
+            }
+        }
+
+        btnStudentReport.addEventListener('click', () => openStudentReport(reportStudentSelect.value));
+
+        // Reportes individuales en lote (todos / solo intensifican / solo aprobados)
+        btnBatchReport.addEventListener('click', () => {
+            const mode = batchReportFilter.value || 'all';
+            const colegio = filterColegio.value && filterColegio.value !== 'Todos' ? filterColegio.value : null;
+            const curso = filterCurso.value && filterCurso.value !== 'Todos' ? filterCurso.value : null;
+
+            let list = engine.getStudentsList(colegio, curso);
+            if (mode === 'intensifica') list = list.filter(s => s.en_riesgo);
+            else if (mode === 'aprobado') list = list.filter(s => !s.en_riesgo);
+
+            if (list.length === 0) {
+                showToast("No hay alumnos que coincidan con el filtro seleccionado.", "error");
+                return;
+            }
+
+            const items = list.map(s => ({ student: s, report: engine.buildStudentIntensificationMarkdown(s) }));
+            lastReportMarkdown = items.map(it => it.report).join('\n\n---\n\n');
+            lastReportPages = items.map(it => it.report);
+            const modeLabels = {
+                all: 'Todos los alumnos',
+                intensifica: 'Alumnos que intensifican',
+                aprobado: 'Alumnos aprobados'
+            };
+            lastReportFilename = `reportes_${mode}_${new Date().toISOString().slice(0, 10)}.md`;
+            reportTitleBar.textContent = `Lote (${items.length}) — ${modeLabels[mode] || mode}`;
+            reportEmptyState.classList.add('hidden');
+            reportPaper.classList.remove('hidden');
+
+            reportPaper.innerHTML = items.map((item, idx) => `
+                <div class="student-report-page pb-6 mb-6 ${idx < items.length - 1 ? 'border-b-2 border-dashed border-slate-200' : ''}">
+                    ${marked.parse(item.report)}
+                </div>
+            `).join('');
+
+            showToast(`Se generaron ${items.length} reporte(s) listos para descargar en PDF (1 hoja por alumno).`, "success");
+        });
+
+        // Reporte general del curso
+        btnGenerateReport.addEventListener('click', async () => {
+            if (engine.students.length === 0) {
+                showToast("No hay datos cargados.", "error");
+                return;
+            }
+            btnGenerateReport.disabled = true;
+            btnGenerateReport.innerHTML = `<i class="w-3.5 h-3.5 animate-spin border-2 border-white border-t-transparent rounded-full"></i> Generando...`;
+
+            try {
+                const colegio = filterColegio.value && filterColegio.value !== 'Todos' ? filterColegio.value : null;
+                const curso = filterCurso.value && filterCurso.value !== 'Todos' ? filterCurso.value : null;
+                const stats = engine.getSummaryStats(colegio, curso);
+                const studentsList = engine.getStudentsList(colegio, curso);
+                let reportText = null;
+
+                if (hasGeminiServer) {
+                    const filtroTxt = `Colegio: ${colegio || 'Todos'} | Curso: ${curso || 'Todos'}`;
+                    const prompt = `Generá un informe pedagógico institucional y un listado claro de intensificación por alumno basado en estos datos exactos (${filtroTxt}):\n\n` +
+                        `RESUMEN:\n- Total Alumnos: ${stats.total_alumnos}\n- Unidades Evaluadas (${stats.total_unidades}): ${stats.unidades.join(', ')}\n` +
+                        `- Aprobados (todas las unidades >= 7): ${stats.alumnos_aprobados} (${stats.tasa_aprobacion}%)\n` +
+                        `- Deben Intensificar: ${stats.alumnos_en_riesgo}\n- Promedio General: ${stats.promedio_general}\n\n` +
+                        `DETALLE DE ALUMNOS:\n${engine.formatStudentsForPrompt(studentsList)}\n\n` +
+                        `Estructura requerida en Markdown:\n1. Resumen Ejecutivo.\n2. Análisis por Unidad.\n3. Listado por Alumno de Unidades a Intensificar.\n4. Plan de Intensificación Sugerido (3 a 5 acciones).`;
+                    reportText = await callGeminiServer(prompt, 'Sos un asesor pedagógico. Redactás informes docentes claros, exactos y listos para imprimir.');
+                }
+
+                if (!reportText) {
+                    reportText = engine.buildLocalCourseReportMarkdown(colegio, curso);
+                }
+
+                lastReportMarkdown = reportText;
+                lastReportPages = [lastReportMarkdown];
+                lastReportFilename = `informe_general_${new Date().toISOString().slice(0, 10)}.md`;
+                reportTitleBar.textContent = "Informe General de Intensificación";
+                reportEmptyState.classList.add('hidden');
+                reportPaper.classList.remove('hidden');
+                reportPaper.innerHTML = marked.parse(lastReportMarkdown);
+                showToast("Informe general generado con éxito.", "success");
+            } finally {
+                btnGenerateReport.disabled = false;
+                btnGenerateReport.innerHTML = `<i data-lucide="wand-2" class="w-3.5 h-3.5"></i> Resumen General del Curso`;
+                lucide.createIcons();
+            }
+        });
+
+        btnDownloadReport.addEventListener('click', () => {
+            if (!lastReportMarkdown) {
+                showToast("Generá un reporte primero antes de descargarlo.", "error");
+                return;
+            }
+            const blob = new Blob([lastReportMarkdown], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = lastReportFilename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showToast("Reporte descargado (.md).", "success");
+        });
+
+        btnPrintReport.addEventListener('click', () => {
+            if (reportPaper.classList.contains('hidden') || (!lastReportPages.length && !lastReportMarkdown)) {
+                showToast("Generá un reporte primero antes de descargar el PDF.", "error");
+                return;
+            }
+            const pages = lastReportPages.length ? lastReportPages : [lastReportMarkdown];
+            const pdfName = (lastReportFilename || 'reporte.md').replace(/\.md$/i, '') + '.pdf';
+
+            try {
+                const res = window.exportPdfFromPages(pages, pdfName);
+                showToast(`PDF descargado (${res.pagesCount} ${res.pagesCount === 1 ? 'página' : 'páginas'}).`, "success");
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || "Error al generar el PDF.", "error");
+            }
+        });
+
+        // Chat
+        btnClearChat.addEventListener('click', () => {
+            chatHistory = [];
+            chatMessages.innerHTML = `
+                <div class="flex items-start gap-2.5 max-w-[88%]">
+                    <div class="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg shrink-0"><i data-lucide="bot" class="w-4 h-4"></i></div>
+                    <div class="bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none p-3.5 text-xs shadow-sm">
+                        <p class="font-semibold mb-1">Conversación reiniciada ✨</p>
+                        <p>Preguntame lo que necesites sobre tus alumnos y las unidades a intensificar.</p>
+                    </div>
+                </div>`;
+            lucide.createIcons();
+        });
+
+        async function askChatbot(prompt) {
+            appendMessage(prompt, 'user');
+            const loadingId = 'loading-' + Date.now();
+            const loadingBubble = document.createElement('div');
+            loadingBubble.id = loadingId;
+            loadingBubble.className = "flex items-start gap-2.5 max-w-[85%] self-start";
+            loadingBubble.innerHTML = `
+                <div class="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg shrink-0"><i data-lucide="bot" class="w-4 h-4"></i></div>
+                <div class="bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none p-3.5 text-xs shadow-sm flex items-center gap-2">
+                    <span class="text-slate-500 text-[11px]">Analizando planilla...</span>
+                </div>`;
+            chatMessages.appendChild(loadingBubble);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            lucide.createIcons();
+
+            const colegio = filterColegio.value && filterColegio.value !== 'Todos' ? filterColegio.value : null;
+            const curso = filterCurso.value && filterCurso.value !== 'Todos' ? filterCurso.value : null;
+
+            let answer = null;
+            if (engine.students.length === 0) {
+                answer = "Actualmente no hay datos cargados. Subí tu planilla CSV o Excel primero.";
+            } else if (hasGeminiServer) {
+                const stats = engine.getSummaryStats(colegio, curso);
+                const studentsList = engine.getStudentsList(colegio, curso);
+                const filtroTxt = `Colegio: ${colegio || 'Todos'} | Curso: ${curso || 'Todos'}`;
+                const historyLines = chatHistory.slice(-10).map(m => `${m.role === 'user' ? 'Docente' : 'Asistente'}: ${m.text}`).join('\n');
+                const sysInst =
+                    "Sos un asistente experto en gestión docente y seguimiento escolar.\n" +
+                    "REGLAS ACADÉMICAS DEL SISTEMA:\n" +
+                    "- Cada unidad tiene dos instancias: Examen y Recuperatorio.\n" +
+                    "- Una unidad se aprueba con nota >= 6.75 (6.75 se considera 7) en el Examen o >= 6.75 en el Recuperatorio.\n" +
+                    "- Notas de 6.50 o menores (< 6.75) NO aprueban: debe INTENSIFICAR esa unidad.\n" +
+                    "Basate únicamente en los datos provistos, no inventes notas, respondé en Markdown prolijo.";
+                const fullPrompt =
+                    `INFORMACIÓN DE LA PLANILLA (${filtroTxt}):\n` +
+                    `- Total alumnos: ${stats.total_alumnos} | Aprobados: ${stats.alumnos_aprobados} (${stats.tasa_aprobacion}%) | Intensifican: ${stats.alumnos_en_riesgo} | Promedio: ${stats.promedio_general}\n` +
+                    `DETALLE POR ALUMNO:\n${engine.formatStudentsForPrompt(studentsList)}\n` +
+                    (historyLines ? `\nHISTORIAL RECIENTE:\n${historyLines}\n` : '') +
+                    `\nConsulta de la docente:\n${prompt}`;
+                answer = await callGeminiServer(fullPrompt, sysInst);
+            }
+
+            if (!answer) {
+                answer = engine.buildChatLocalFallback(prompt, colegio, curso);
+            }
+
+            const el = document.getElementById(loadingId);
+            if (el) el.remove();
+
+            chatHistory.push({ role: 'user', text: prompt });
+            chatHistory.push({ role: 'bot', text: answer });
+            appendMessage(answer, 'bot');
+        }
+
+        function appendMessage(text, sender) {
+            const container = document.createElement('div');
+            if (sender === 'user') {
+                container.className = "flex items-start gap-2.5 max-w-[85%] self-end flex-row-reverse";
+                container.innerHTML = `
+                    <div class="p-1.5 bg-slate-900 text-white rounded-lg shrink-0"><i data-lucide="user" class="w-4 h-4"></i></div>
+                    <div class="bg-slate-900 text-white rounded-2xl rounded-tr-none p-3.5 text-xs shadow-sm">
+                        <p class="leading-relaxed whitespace-pre-line">${escapeHtml(text)}</p>
+                    </div>`;
+            } else {
+                container.className = "flex items-start gap-2.5 max-w-[88%] self-start";
+                container.innerHTML = `
+                    <div class="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg shrink-0"><i data-lucide="bot" class="w-4 h-4"></i></div>
+                    <div class="bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none p-4 text-xs shadow-sm markdown-body w-full overflow-x-auto">
+                        ${marked.parse(text)}
+                    </div>`;
+            }
+            chatMessages.appendChild(container);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            lucide.createIcons();
+        }
+
+        chatSendBtn.addEventListener('click', () => {
+            const text = chatInput.value.trim();
+            if (text) {
+                askChatbot(text);
+                chatInput.value = "";
+            }
+        });
+        chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') chatSendBtn.click(); });
+        document.querySelectorAll('.quick-prompt-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => askChatbot(e.target.innerText.trim()));
+        });
+
+        lucide.createIcons();
+        (async () => {
+            if (!engine.loadLocalSnapshot()) {
+                await engine.loadDemoData(false);
+            }
+            await Promise.all([checkAiAvailability(), fetchStatusAndData()]);
+        })();
+    </script>
+
+    <!-- Firebase Authentication & Cloud Firestore Persistence -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+        import {
+            getAuth,
+            GoogleAuthProvider,
+            signInWithPopup,
+            signOut,
+            onAuthStateChanged
+        } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
+        import {
+            getFirestore,
+            doc,
+            getDoc,
+            getDocFromServer,
+            getDocs,
+            setDoc,
+            updateDoc,
+            collection,
+            query,
+            where,
+            writeBatch,
+            serverTimestamp
+        } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+
+        const OperationType = {
+            CREATE: 'create',
+            UPDATE: 'update',
+            DELETE: 'delete',
+            LIST: 'list',
+            GET: 'get',
+            WRITE: 'write',
+        };
+
+        let firebaseApp = null;
+        let auth = null;
+        let db = null;
+        let firebaseCfg = null;
+        let anonymousSidBeforeLogin = null;
+
+        const authSignedOutEl = document.getElementById('auth-signed-out');
+        const authSignedInEl = document.getElementById('auth-signed-in');
+        const authUserNameEl = document.getElementById('auth-user-name');
+        const cloudSyncStatusEl = document.getElementById('cloud-sync-status');
+        const btnGoogleLogin = document.getElementById('btn-google-login');
+        const btnGoogleLogout = document.getElementById('btn-google-logout');
+        const btnCloudSaveNow = document.getElementById('btn-cloud-save-now');
+
+        function notifyToast(msg, type = 'info') {
+            if (typeof window.showAppToast === 'function') {
+                window.showAppToast(msg, type);
+            }
+        }
+
+        function setSyncLabel(text, tone = 'ok') {
+            if (!cloudSyncStatusEl) return;
+            cloudSyncStatusEl.textContent = text;
+            const tones = {
+                ok: 'text-[10px] text-emerald-700 font-medium',
+                syncing: 'text-[10px] text-indigo-600 font-medium',
+                warn: 'text-[10px] text-amber-700 font-medium',
+                err: 'text-[10px] text-rose-600 font-medium',
+            };
+            cloudSyncStatusEl.className = tones[tone] || tones.ok;
+        }
+
+        function handleFirestoreError(error, operationType, path) {
+            const currentUser = auth ? auth.currentUser : null;
+            const errInfo = {
+                error: error instanceof Error ? error.message : String(error),
+                authInfo: {
+                    userId: currentUser?.uid ?? null,
+                    email: currentUser?.email ?? null,
+                    emailVerified: currentUser?.emailVerified ?? null,
+                    isAnonymous: currentUser?.isAnonymous ?? null,
+                    tenantId: currentUser?.tenantId ?? null,
+                    providerInfo: currentUser?.providerData?.map(provider => ({
+                        providerId: provider.providerId,
+                        email: provider.email,
+                    })) || []
+                },
+                operationType,
+                path
+            };
+            console.error('Firestore Error: ', JSON.stringify(errInfo));
+            if (errInfo.error.includes('Quota exceeded')) {
+                const dbUrl = firebaseCfg
+                    ? `https://console.firebase.google.com/project/${firebaseCfg.projectId}/firestore/databases/${firebaseCfg.firestoreDatabaseId}/data?openUpgradeDialog=true`
+                    : '';
+                notifyToast('Se alcanzó el límite diario gratuito de Firebase Firestore. Se reinicia mañana.' + (dbUrl ? ' Revisá la consola de Firebase.' : ''), 'error');
+            }
+            throw new Error(JSON.stringify(errInfo));
+        }
+
+        async function testConnection() {
+            if (!db) return;
+            try {
+                await getDocFromServer(doc(db, 'test', 'connection'));
+            } catch (error) {
+                if (error instanceof Error && error.message.includes('the client is offline')) {
+                    console.error('Please check your Firebase configuration.');
+                }
+            }
+        }
+
+        function sanitizeSafeId(rawId, fallbackPrefix = 'doc') {
+            const cleaned = String(rawId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+            return cleaned || `${fallbackPrefix}_${Date.now()}`;
+        }
+
+        function sanitizeCourseForFirestore(course, uid) {
+            const courseId = sanitizeSafeId(course.course_id, 'c');
+            const colegio = String(course.colegio || 'Sin especificar').trim().slice(0, 160) || 'Sin especificar';
+            const curso = String(course.curso || 'Sin curso').trim().slice(0, 120) || 'Sin curso';
+            let units = (Array.isArray(course.units) ? course.units : [])
+                .map(u => String(u || '').trim().slice(0, 120))
+                .filter(Boolean)
+                .slice(0, 30);
+            if (units.length === 0) units = ['Unidad 1'];
+
+            const extraColumns = (Array.isArray(course.extra_columns) ? course.extra_columns : (Array.isArray(course.extraColumns) ? course.extraColumns : []))
+                .map(ex => String(ex || '').trim().slice(0, 120))
+                .filter(Boolean)
+                .slice(0, 20);
+
+            const rows = (Array.isArray(course.rows) ? course.rows : []).map((r, idx) => {
+                const studentId = sanitizeSafeId(r.student_id || `s_${idx}`, 's');
+                let nombre = String(r.nombre || '').trim().slice(0, 120);
+                const apellido = String(r.apellido || '').trim().slice(0, 120);
+                if (!nombre && !apellido) nombre = `Alumno ${idx + 1}`;
+
+                const cleanGrades = {};
+                units.forEach(uName => {
+                    const slot = (r.grades && r.grades[uName]) || {};
+                    cleanGrades[uName] = {
+                        examen: (typeof slot.examen === 'number' && Number.isFinite(slot.examen)) ? slot.examen : null,
+                        recu: (typeof slot.recu === 'number' && Number.isFinite(slot.recu)) ? slot.recu : null,
+                    };
+                });
+
+                const cleanExtras = {};
+                extraColumns.forEach(exName => {
+                    const val = r.extras && r.extras[exName] !== undefined ? String(r.extras[exName]).slice(0, 500) : '';
+                    cleanExtras[exName] = val;
+                });
+
+                return {
+                    studentId,
+                    payload: {
+                        ownerId: uid,
+                        courseId,
+                        colegio: String(r.colegio || colegio).trim().slice(0, 160) || colegio,
+                        curso: String(r.curso || curso).trim().slice(0, 120) || curso,
+                        nombre,
+                        apellido,
+                        grades: cleanGrades,
+                        extras: cleanExtras,
+                    }
+                };
+            });
+
+            return {
+                courseId,
+                coursePayload: {
+                    ownerId: uid,
+                    colegio,
+                    curso,
+                    units,
+                    extraColumns,
+                },
+                rows,
+            };
+        }
+
+        async function commitChunkedOps(ops) {
+            const CHUNK_SIZE = 380;
+            for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
+                const slice = ops.slice(i, i + CHUNK_SIZE);
+                const batch = writeBatch(db);
+                slice.forEach(op => {
+                    if (op.type === 'set') batch.set(op.ref, op.data);
+                    else if (op.type === 'update') batch.update(op.ref, op.data);
+                    else if (op.type === 'delete') batch.delete(op.ref);
+                });
+                try {
+                    await batch.commit();
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.WRITE, slice[0]?.path || 'users');
+                }
+            }
+        }
+
+        async function upsertUserProfile(user) {
+            const path = `users/${user.uid}`;
+            const userRef = doc(db, 'users', user.uid);
+            let exists = false;
+            try {
+                const snap = await getDoc(userRef);
+                exists = snap.exists();
+            } catch (error) {
+                handleFirestoreError(error, OperationType.GET, path);
+            }
+            const displayName = String(user.displayName || '').trim().slice(0, 200);
+            const email = String(user.email || '').trim().slice(0, 254);
+
+            if (!exists) {
+                try {
+                    await setDoc(userRef, {
+                        uid: user.uid,
+                        displayName,
+                        email,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                    });
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.CREATE, path);
+                }
+            } else {
+                try {
+                    await updateDoc(userRef, {
+                        displayName,
+                        email,
+                        updatedAt: serverTimestamp(),
+                    });
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.UPDATE, path);
+                }
+            }
+        }
+
+        async function loadCoursesFromFirestore(uid) {
+            const coursesPath = `users/${uid}/courses`;
+            let courseDocs = [];
+            try {
+                const qCourses = query(collection(db, 'users', uid, 'courses'), where('ownerId', '==', uid));
+                const snap = await getDocs(qCourses);
+                courseDocs = snap.docs;
+            } catch (error) {
+                handleFirestoreError(error, OperationType.LIST, coursesPath);
+            }
+
+            const loadedCourses = [];
+            for (const cDoc of courseDocs) {
+                const cData = cDoc.data();
+                const studentsPath = `users/${uid}/courses/${cDoc.id}/students`;
+                let studentDocs = [];
+                try {
+                    const qStudents = query(
+                        collection(db, 'users', uid, 'courses', cDoc.id, 'students'),
+                        where('ownerId', '==', uid)
+                    );
+                    const sSnap = await getDocs(qStudents);
+                    studentDocs = sSnap.docs;
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.LIST, studentsPath);
+                }
+                loadedCourses.push({
+                    course_id: cDoc.id,
+                    colegio: cData.colegio,
+                    curso: cData.curso,
+                    units: cData.units || [],
+                    extra_columns: cData.extraColumns || [],
+                    rows: studentDocs.map(sd => {
+                        const sData = sd.data();
+                        return {
+                            student_id: sd.id,
+                            colegio: sData.colegio,
+                            curso: sData.curso,
+                            nombre: sData.nombre,
+                            apellido: sData.apellido,
+                            grades: sData.grades || {},
+                            extras: sData.extras || {},
+                        };
+                    }),
+                });
+            }
+            return loadedCourses;
+        }
+
+        async function saveCoursesSnapshotToFirestore(coursesSnapshot, mode = 'replace') {
+            if (!auth || !auth.currentUser || !db) return;
+            if (!Array.isArray(coursesSnapshot) || coursesSnapshot.length === 0) return;
+
+            const uid = auth.currentUser.uid;
+            setSyncLabel('Guardando en la nube...', 'syncing');
+
+            try {
+                // Leer IDs existentes para respetar inmutabilidad de createdAt y limpiar cursos/alumnos borrados
+                const coursesPath = `users/${uid}/courses`;
+                let existingCourseSnaps = [];
+                try {
+                    const qCourses = query(collection(db, 'users', uid, 'courses'), where('ownerId', '==', uid));
+                    const snap = await getDocs(qCourses);
+                    existingCourseSnaps = snap.docs;
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.LIST, coursesPath);
+                }
+
+                const existingCourseIds = new Set(existingCourseSnaps.map(d => d.id));
+                const normalizedCourses = coursesSnapshot.map(c => sanitizeCourseForFirestore(c, uid));
+                const targetCourseIds = new Set(normalizedCourses.map(c => c.courseId));
+
+                // Cargar IDs de alumnos existentes para cursos que vamos a tocar o borrar
+                const existingStudentsByCourse = new Map();
+                const coursesToInspect = new Set([
+                    ...normalizedCourses.filter(c => existingCourseIds.has(c.courseId)).map(c => c.courseId),
+                    ...(mode === 'replace' ? [...existingCourseIds].filter(id => !targetCourseIds.has(id)) : []),
+                ]);
+
+                for (const cId of coursesToInspect) {
+                    const sPath = `users/${uid}/courses/${cId}/students`;
+                    try {
+                        const qStudents = query(collection(db, 'users', uid, 'courses', cId, 'students'), where('ownerId', '==', uid));
+                        const sSnap = await getDocs(qStudents);
+                        existingStudentsByCourse.set(cId, new Set(sSnap.docs.map(d => d.id)));
+                    } catch (error) {
+                        handleFirestoreError(error, OperationType.LIST, sPath);
+                    }
+                }
+
+                const upsertOps = [];
+                const deleteStudentOps = [];
+                const deleteCourseOps = [];
+
+                // 1. Crear o actualizar cursos y alumnos
+                for (const nc of normalizedCourses) {
+                    const cRef = doc(db, 'users', uid, 'courses', nc.courseId);
+                    const cPath = `users/${uid}/courses/${nc.courseId}`;
+                    if (existingCourseIds.has(nc.courseId)) {
+                        upsertOps.push({
+                            type: 'update',
+                            ref: cRef,
+                            path: cPath,
+                            data: {
+                                colegio: nc.coursePayload.colegio,
+                                curso: nc.coursePayload.curso,
+                                units: nc.coursePayload.units,
+                                extraColumns: nc.coursePayload.extraColumns,
+                                updatedAt: serverTimestamp(),
+                            }
+                        });
+                    } else {
+                        upsertOps.push({
+                            type: 'set',
+                            ref: cRef,
+                            path: cPath,
+                            data: {
+                                ...nc.coursePayload,
+                                createdAt: serverTimestamp(),
+                                updatedAt: serverTimestamp(),
+                            }
+                        });
+                    }
+
+                    const existingStudents = existingStudentsByCourse.get(nc.courseId) || new Set();
+                    const incomingStudentIds = new Set();
+
+                    for (const row of nc.rows) {
+                        incomingStudentIds.add(row.studentId);
+                        const sRef = doc(db, 'users', uid, 'courses', nc.courseId, 'students', row.studentId);
+                        const sPath = `users/${uid}/courses/${nc.courseId}/students/${row.studentId}`;
+                        if (existingStudents.has(row.studentId)) {
+                            upsertOps.push({
+                                type: 'update',
+                                ref: sRef,
+                                path: sPath,
+                                data: {
+                                    colegio: row.payload.colegio,
+                                    curso: row.payload.curso,
+                                    nombre: row.payload.nombre,
+                                    apellido: row.payload.apellido,
+                                    grades: row.payload.grades,
+                                    extras: row.payload.extras,
+                                    updatedAt: serverTimestamp(),
+                                }
+                            });
+                        } else {
+                            upsertOps.push({
+                                type: 'set',
+                                ref: sRef,
+                                path: sPath,
+                                data: {
+                                    ...row.payload,
+                                    createdAt: serverTimestamp(),
+                                    updatedAt: serverTimestamp(),
+                                }
+                            });
+                        }
+                    }
+
+                    // Eliminar alumnos removidos de este curso
+                    for (const oldSid of existingStudents) {
+                        if (!incomingStudentIds.has(oldSid)) {
+                            deleteStudentOps.push({
+                                type: 'delete',
+                                ref: doc(db, 'users', uid, 'courses', nc.courseId, 'students', oldSid),
+                                path: `users/${uid}/courses/${nc.courseId}/students/${oldSid}`,
+                            });
+                        }
+                    }
+                }
+
+                // 2. Si mode === 'replace', eliminar cursos que ya no están
+                if (mode === 'replace') {
+                    for (const oldCid of existingCourseIds) {
+                        if (!targetCourseIds.has(oldCid)) {
+                            const oldStudents = existingStudentsByCourse.get(oldCid) || new Set();
+                            for (const oldSid of oldStudents) {
+                                deleteStudentOps.push({
+                                    type: 'delete',
+                                    ref: doc(db, 'users', uid, 'courses', oldCid, 'students', oldSid),
+                                    path: `users/${uid}/courses/${oldCid}/students/${oldSid}`,
+                                });
+                            }
+                            deleteCourseOps.push({
+                                type: 'delete',
+                                ref: doc(db, 'users', uid, 'courses', oldCid),
+                                path: `users/${uid}/courses/${oldCid}`,
+                            });
+                        }
+                    }
+                }
+
+                // Ejecutar en orden seguro: primero deletes de alumnos, luego upserts (cursos primero para getAfter), luego deletes de cursos
+                if (deleteStudentOps.length) await commitChunkedOps(deleteStudentOps);
+                if (upsertOps.length) await commitChunkedOps(upsertOps);
+                if (deleteCourseOps.length) await commitChunkedOps(deleteCourseOps);
+
+                if (btnCloudSaveNow) btnCloudSaveNow.classList.add('hidden');
+                setSyncLabel('Sincronizado en la nube', 'ok');
+                notifyToast('Cambios guardados en tu nube de Google.', 'success');
+            } catch (err) {
+                setSyncLabel('Error al guardar en la nube', 'err');
+                notifyToast('No se pudo guardar en Firebase. Revisá tu conexión.', 'error');
+                throw err;
+            }
+        }
+
+        window.cloudBridge = {
+            uid: null,
+            async syncAfterMutation(coursesSnapshot, mode = 'replace') {
+                if (!this.uid) return;
+                await saveCoursesSnapshotToFirestore(coursesSnapshot, mode);
+            }
+        };
+
+        async function initFirebase() {
+            try {
+                let res = await fetch('/firebase-applet-config.json', { credentials: 'same-origin' });
+                if (!res.ok) {
+                    res = await fetch('/api/firebase-config', { credentials: 'same-origin' });
+                }
+                if (!res.ok) return;
+                firebaseCfg = await res.json();
+                firebaseApp = initializeApp(firebaseCfg);
+                db = getFirestore(firebaseApp, firebaseCfg.firestoreDatabaseId);
+                auth = getAuth(firebaseApp);
+
+                testConnection();
+
+                btnGoogleLogin?.addEventListener('click', async () => {
+                    try {
+                        const provider = new GoogleAuthProvider();
+                        await signInWithPopup(auth, provider);
+                    } catch (err) {
+                        console.error('Error Google Sign-In:', err);
+                        notifyToast('No se pudo iniciar sesión con Google. Verificá que no se haya bloqueado la ventana emergente o que el dominio esté autorizado en Firebase.', 'error');
+                    }
+                });
+
+                btnGoogleLogout?.addEventListener('click', async () => {
+                    try {
+                        await signOut(auth);
+                        notifyToast('Sesión cerrada.', 'info');
+                    } catch (err) {
+                        console.error('Error signOut:', err);
+                    }
+                });
+
+                btnCloudSaveNow?.addEventListener('click', async () => {
+                    if (!auth.currentUser || !window.docenteEngine) return;
+                    const courses = window.docenteEngine.exportCoursesSnapshot(false);
+                    if (courses.length > 0) {
+                        await saveCoursesSnapshotToFirestore(courses, 'replace');
+                    }
+                });
+
+                onAuthStateChanged(auth, async (user) => {
+                    const eng = window.docenteEngine;
+                    if (user) {
+                        window.cloudBridge.uid = user.uid;
+                        authSignedOutEl?.classList.add('hidden');
+                        authSignedInEl?.classList.remove('hidden');
+                        authSignedInEl?.classList.add('flex');
+                        if (authUserNameEl) {
+                            authUserNameEl.textContent = user.displayName || user.email || 'Docente';
+                        }
+                        setSyncLabel('Cargando datos de la nube...', 'syncing');
+
+                        try {
+                            await upsertUserProfile(user);
+                            const cloudCourses = await loadCoursesFromFirestore(user.uid);
+                            if (cloudCourses.length > 0 && eng) {
+                                eng.syncFromCoursesSnapshot(cloudCourses, 'Guardado en la nube');
+                                if (typeof window.refreshDashboardData === 'function') {
+                                    await window.refreshDashboardData();
+                                }
+                                setSyncLabel('Sincronizado en la nube', 'ok');
+                                notifyToast(`Sesión iniciada: ${cloudCourses.length} curso(s) recuperado(s) desde la nube.`, 'success');
+                            } else if (eng) {
+                                const localCourses = eng.exportCoursesSnapshot(false);
+                                if (localCourses.length > 0) {
+                                    await saveCoursesSnapshotToFirestore(localCourses, 'replace');
+                                    if (typeof window.refreshDashboardData === 'function') {
+                                        await window.refreshDashboardData();
+                                    }
+                                } else {
+                                    setSyncLabel('Cuenta lista (subí tu planilla)', 'warn');
+                                    notifyToast('Conectada con Google. Tus próximas planillas se guardarán gratis para siempre.', 'success');
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Error inicializando sesión en la nube:', err);
+                            setSyncLabel('Error de sincronización', 'err');
+                        }
+                    } else {
+                        const wasSignedIn = Boolean(window.cloudBridge.uid);
+                        window.cloudBridge.uid = null;
+                        authSignedInEl?.classList.add('hidden');
+                        authSignedInEl?.classList.remove('flex');
+                        authSignedOutEl?.classList.remove('hidden');
+                        if (wasSignedIn && eng) {
+                            if (!eng.loadLocalSnapshot()) {
+                                await eng.loadDemoData(false);
+                            }
+                            if (typeof window.refreshDashboardData === 'function') {
+                                await window.refreshDashboardData();
+                            }
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error('Error cargando Firebase SDK:', err);
+            }
+        }
+
+        initFirebase();
+    </script>
+</body>
+</html>

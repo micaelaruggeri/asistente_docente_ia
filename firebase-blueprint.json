@@ -1,0 +1,149 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil privado del docente autenticado con Google.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "UID de Firebase Authentication del docente.",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Nombre visible del docente.",
+          "maxLength": 200
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Correo electrónico verificado del docente.",
+          "maxLength": 254
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Fecha de creación asignada por servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Fecha de última actualización asignada por servidor."
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Curso escolar perteneciente a una docente con sus unidades de evaluación y columnas extra.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID del docente dueño del curso.",
+          "maxLength": 128
+        },
+        "colegio": {
+          "type": "string",
+          "description": "Nombre de la institución educativa.",
+          "maxLength": 160
+        },
+        "curso": {
+          "type": "string",
+          "description": "Nombre o división del curso.",
+          "maxLength": 120
+        },
+        "units": {
+          "type": "array",
+          "description": "Lista ordenada de nombres de unidades evaluadas (máximo 30)."
+        },
+        "extraColumns": {
+          "type": "array",
+          "description": "Lista ordenada de columnas extra personalizadas (máximo 20)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de creación en servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de actualización en servidor."
+        }
+      },
+      "required": ["ownerId", "colegio", "curso", "units", "extraColumns", "createdAt", "updatedAt"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Registro de un alumno dentro de un curso con sus notas de Examen y Recuperatorio por unidad.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID del docente dueño del registro.",
+          "maxLength": 128
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Identificador del documento padre del curso.",
+          "maxLength": 128
+        },
+        "colegio": {
+          "type": "string",
+          "description": "Institución educativa.",
+          "maxLength": 160
+        },
+        "curso": {
+          "type": "string",
+          "description": "Curso del alumno.",
+          "maxLength": 120
+        },
+        "nombre": {
+          "type": "string",
+          "description": "Nombre(s) del alumno.",
+          "maxLength": 120
+        },
+        "apellido": {
+          "type": "string",
+          "description": "Apellido(s) del alumno.",
+          "maxLength": 120
+        },
+        "grades": {
+          "type": "object",
+          "description": "Mapa de calificaciones por unidad: { unidad: { examen, recu } }."
+        },
+        "extras": {
+          "type": "object",
+          "description": "Mapa de columnas extra personalizadas: { columna: valor }."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de creación en servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de actualización en servidor."
+        }
+      },
+      "required": ["ownerId", "courseId", "colegio", "curso", "nombre", "apellido", "grades", "extras", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Perfil privado de cada docente autenticada (PII aislada al dueño)."
+    },
+    "/users/{userId}/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Cursos pertenecientes a cada docente autenticada."
+    },
+    "/users/{userId}/courses/{courseId}/students/{studentId}": {
+      "schema": "Student",
+      "description": "Alumnos y notas por unidad de cada curso."
+    }
+  }
+}

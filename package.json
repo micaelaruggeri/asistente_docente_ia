@@ -1,0 +1,24 @@
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node start_server.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node start_server.mjs",
+    "clean": "rm -rf dist",
+    "start": "node start_server.mjs",
+    "lint": "npx eslint firestore.rules && node --check start_server.mjs && node --check scripts/build.mjs && node --check static/app-engine.js"
+  },
+  "devDependencies": {
+    "@firebase/eslint-plugin-security-rules": "^0.0.2",
+    "eslint": "^10.15.0"
+  },
+  "dependencies": {
+    "@google/genai": "^3.6.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
+    "xlsx": "^0.18.5"
+  }
+}

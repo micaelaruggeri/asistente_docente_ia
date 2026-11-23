@@ -1,0 +1,12 @@
+id_alumno,nombre,apellido,email,fecha_registro
+101,Juan,Pérez,juan.perez@email.com,2023-03-15
+102,María,Gómez,maria.gomez@email.com,15/03/2023
+103,Carlos,Rodríguez,,16-03-2023
+104,Ana,Martínez,ana.martinez@email.com,2023/03/17
+105,Luis,Sánchez,luis.sanchez@email.com,2023-03-18
+105,Luis,Sánchez,luis.sanchez@email.com,2023-03-18
+106,Lucía,Fernández,lucia.f@email.com,19/03/2023
+107,Sofía,Díaz,sofia.diaz@email.com,2023-03-20
+108,Diego,García,diego.g@email.com,2023-03-21
+109,Elena,Moreno,elena.moreno@email.com,22/03/2023
+110,Mateo,Álvarez,,2023-03-23

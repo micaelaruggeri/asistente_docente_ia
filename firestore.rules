@@ -1,0 +1,163 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    // --- Entity Validation Helpers ---
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['uid', 'displayName', 'email', 'createdAt', 'updatedAt']) &&
+             data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 200)) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidCourse(data, userId) {
+      return data.keys().hasAll(['ownerId', 'colegio', 'curso', 'units', 'extraColumns', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['ownerId', 'colegio', 'curso', 'units', 'extraColumns', 'createdAt', 'updatedAt']) &&
+             data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid && data.ownerId.size() <= 128 &&
+             data.colegio is string && data.colegio.size() >= 1 && data.colegio.size() <= 160 &&
+             data.curso is string && data.curso.size() >= 1 && data.curso.size() <= 120 &&
+             data.units is list && data.units.size() >= 1 && data.units.size() <= 30 && data.units[0] is string && data.units[0].size() <= 120 &&
+             data.extraColumns is list && data.extraColumns.size() <= 20 && (data.extraColumns.size() == 0 || (data.extraColumns[0] is string && data.extraColumns[0].size() <= 120)) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidStudent(data, userId, courseId) {
+      return data.keys().hasAll(['ownerId', 'courseId', 'colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['ownerId', 'courseId', 'colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'createdAt', 'updatedAt']) &&
+             data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid && data.ownerId.size() <= 128 &&
+             data.courseId is string && data.courseId == courseId && data.courseId.size() <= 128 &&
+             data.colegio is string && data.colegio.size() >= 1 && data.colegio.size() <= 160 &&
+             data.curso is string && data.curso.size() >= 1 && data.curso.size() <= 120 &&
+             data.nombre is string && data.nombre.size() <= 120 &&
+             data.apellido is string && data.apellido.size() <= 120 &&
+             (data.nombre.size() > 0 || data.apellido.size() > 0) &&
+             data.grades is map && data.grades.size() <= 30 &&
+             data.extras is map && data.extras.size() <= 20 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'updatedAt']);
+
+      allow delete: if false;
+
+      match /courses/{courseId} {
+        allow get: if isValidId(userId) && isValidId(courseId) && isOwner(userId) && existing().ownerId == request.auth.uid;
+        allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+
+        allow create: if isValidId(userId) &&
+          isValidId(courseId) &&
+          isOwner(userId) &&
+          isValidCourse(incoming(), userId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId) &&
+          isValidId(courseId) &&
+          isOwner(userId) &&
+          isValidCourse(incoming(), userId) &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['colegio', 'curso', 'units', 'extraColumns', 'updatedAt'])
+          );
+
+        allow delete: if isValidId(userId) && isValidId(courseId) && isOwner(userId) && existing().ownerId == request.auth.uid;
+
+        match /students/{studentId} {
+          allow get: if isValidId(userId) &&
+            isValidId(courseId) &&
+            isValidId(studentId) &&
+            isOwner(userId) &&
+            existing().ownerId == request.auth.uid &&
+            get(/databases/$(database)/documents/users/$(userId)/courses/$(courseId)).data.ownerId == request.auth.uid;
+
+          allow list: if isOwner(userId) && existing().ownerId == request.auth.uid;
+
+          allow create: if isValidId(userId) &&
+            isValidId(courseId) &&
+            isValidId(studentId) &&
+            isOwner(userId) &&
+            isValidStudent(incoming(), userId, courseId) &&
+            incoming().createdAt == request.time &&
+            incoming().updatedAt == request.time &&
+            getAfter(/databases/$(database)/documents/users/$(userId)/courses/$(courseId)).data.ownerId == request.auth.uid;
+
+          allow update: if isValidId(userId) &&
+            isValidId(courseId) &&
+            isValidId(studentId) &&
+            isOwner(userId) &&
+            isValidStudent(incoming(), userId, courseId) &&
+            incoming().ownerId == existing().ownerId &&
+            incoming().courseId == existing().courseId &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().updatedAt == request.time &&
+            get(/databases/$(database)/documents/users/$(userId)/courses/$(courseId)).data.ownerId == request.auth.uid &&
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['colegio', 'curso', 'nombre', 'apellido', 'grades', 'extras', 'updatedAt'])
+            );
+
+          allow delete: if isValidId(userId) &&
+            isValidId(courseId) &&
+            isValidId(studentId) &&
+            isOwner(userId) &&
+            existing().ownerId == request.auth.uid &&
+            get(/databases/$(database)/documents/users/$(userId)/courses/$(courseId)).data.ownerId == request.auth.uid;
+        }
+      }
+    }
+  }
+}

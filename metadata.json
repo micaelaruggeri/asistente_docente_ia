@@ -1,0 +1,6 @@
+{
+  "name": "Chatbot Docente Inteligente",
+  "description": "Asistente inteligente para docentes que analiza calificaciones, intensificación de unidades y rendimiento estudiantil con Excel/CSV, carga directa, reportes en PDF, guardado en Firebase y soporte opcional de Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
