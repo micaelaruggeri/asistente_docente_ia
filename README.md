@@ -1,57 +1,25 @@
-# Chatbot Docente Inteligente — Seguimiento e Intensificación
+# Asistente Docente Inteligente — Seguimiento e Intensificación
 
-Asistente docente y tablero de analítica educativa listo para desplegar **gratis en Netlify desde Git**, con guardado automático en la nube mediante **Firebase Authentication (Google)** y **Cloud Firestore**.
+Proyecto desarrollado por **Micaela Ruggeri** como herramienta de apoyo para el seguimiento académico por unidades, la detección temprana de instancias de intensificación y la generación de informes pedagógicos.
 
-## ✨ Funcionalidades principales
-- **Carga de planillas Excel (`.xlsx` / `.xls`) multipestaña y CSV**: detección automática de filas de encabezado, columnas de evaluación `(Examen)` / `(Recu)`, múltiples cursos/colegios y columnas extra (`Observaciones`, `Asistencia`, `Extra: ...`).
-- **Carga Directa en pantalla**: creá cursos, unidades y columnas extra directamente desde el navegador, editá notas y guardá sin salir de la app.
-- **Regla de acreditación e intensificación**: `>= 6.75` aprueba la unidad (equivale a 7); `<= 6.5` pasa a intensificación.
-- **Ordenamiento alfabético por apellido** (`Apellido, Nombre`).
-- **Reportes individuales, por lote y generales en PDF A4** (1 hoja por alumno), además de exportación a `.xlsx` y `.md`.
-- **Respaldo gratuito en la nube**: inicio de sesión con Google + Firebase Firestore por docente, con respaldo local en navegador cuando no hay sesión iniciada.
-- **Asistente analítico con IA (opcional)**: vía Netlify Function (`/api/ai`) usando Gemini si configurás `GEMINI_API_KEY` en las variables de entorno, o Modo Analítico Local automático si no configurás ninguna clave.
+## Enfoque y propósito
 
----
+La idea detrás de este tablero surge de una necesidad concreta del trabajo docente: consolidar calificaciones por unidad, identificar trayectorias que requieren intensificación y redactar devoluciones claras sin depender de procesos manuales dispersos.
 
-## 📁 Estructura del proyecto (100% Node / Netlify, sin Python)
+El sistema combina reglas de evaluación definidas para el seguimiento por unidad, visualización de métricas y generación de reportes listos para exportar o imprimir.
 
-```text
-├── netlify.toml                  # Configuración automática para Netlify (build + functions + redirects)
-├── netlify/functions/api.mjs     # Endpoint serverless (/api/status, /api/firebase-config, /api/ai)
-├── lib/gemini-handler.mjs        # Integración opcional con Gemini API (@google/genai)
-├── scripts/build.mjs             # Genera dist/ con HTML, motor JS, CSV demo, config Firebase y vendors locales
-├── static/
-│   ├── index.html                # Interfaz web del docente
-│   └── app-engine.js             # Motor de planillas Excel/CSV, métricas, reportes y PDF
-├── data/planilla_curso.csv       # Planilla de ejemplo
-├── firebase-applet-config.json   # Configuración pública del proyecto Firebase
-├── firestore.rules               # Reglas de seguridad de Cloud Firestore
-├── start_server.mjs              # Servidor local Node.js (puerto 3000) idéntico a Netlify
-└── package.json
-```
+## Evolución del proyecto
 
----
+- **Primera etapa:** prototipo inicial orientado al procesamiento de datos con Python (`FastAPI` y `Pandas`).
+- **Etapa actual:** migración a una aplicación web con `Node.js`, `Netlify Functions`, `Firebase` (autenticación y persistencia en Firestore) e integración opcional con `Gemini AI` (con fallback a análisis local cuando no se utiliza API externa).
 
-## 🚀 Despliegue gratis en Netlify desde Git
+## Funcionalidades clave
 
-1. Subí este proyecto a un repositorio en **GitHub**, **GitLab** o **Bitbucket**.
-2. En **Netlify**, hacé clic en **Add new site → Import an existing project** y seleccioná tu repositorio.
-3. Netlify leerá `netlify.toml` automáticamente:
-   - **Build command:** `npm run build`
-   - **Publish directory:** `dist`
-   - **Functions directory:** `netlify/functions`
-4. Hacé clic en **Deploy site**.
-5. *(Obligatorio para usar Google Login)* Copiá el dominio que te asignó Netlify (por ejemplo `tu-sitio.netlify.app`), entrá a **Firebase Console → Authentication → Settings → Authorized domains** y agregá ese dominio.
-6. *(Opcional para respuestas con Gemini AI)* En **Netlify → Site configuration → Environment variables**, agregá `GEMINI_API_KEY`. Si no la agregás, el asistente funciona igualmente en **Modo Analítico Local**.
+- **Seguimiento por unidades:** carga de planillas (`.xlsx`, `.xls`, `.csv`) y carga/edición directa desde la interfaz, con ordenamiento por apellido y nombre.
+- **Detección de intensificación:** cálculo automático según criterios de aprobación e intensificación por unidad.
+- **Informes y exportación:** generación de reportes en PDF A4 (individuales, por lote o generales) y exportación a `.xlsx` y `.md`.
+- **Respaldo y asistencia analítica:** guardado asociado a cuenta de usuario en la nube o respaldo local en navegador, junto con un asistente de apoyo analítico.
 
----
+## Autoría y contexto
 
-## 💻 Ejecución local
-
-```bash
-npm install
-npm run build
-npm start
-```
-
-Luego abrí `http://localhost:3000`.
+Desarrollado por **Micaela Ruggeri** como parte de su recorrido en docencia de matemática y ciencia de datos / inteligencia aplicada.
