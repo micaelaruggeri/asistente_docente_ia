@@ -369,6 +369,22 @@
                 </div>
             </div>
 
+            <!-- GRÁFICOS (PANORAMA DE INTENSIFICACIÓN POR UNIDAD) -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <h3 class="font-display font-semibold text-base text-slate-900 mb-4 flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-600"></i>
+                    Panorama de Intensificación por Unidad
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
+                    <div class="sm:col-span-8 h-56 flex items-center justify-center">
+                        <canvas id="chart-units"></canvas>
+                    </div>
+                    <div class="sm:col-span-4 h-56 flex items-center justify-center">
+                        <canvas id="chart-status"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <!-- TABLA DINÁMICA DE CALIFICACIONES POR UNIDAD -->
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col min-h-[320px]">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -401,22 +417,6 @@
                             <tr><td class="text-center py-8 text-slate-400">Cargando planilla...</td></tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- GRÁFICOS -->
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                <h3 class="font-display font-semibold text-base text-slate-900 mb-4 flex items-center gap-2">
-                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-600"></i>
-                    Panorama de Intensificación por Unidad
-                </h3>
-                <div class="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
-                    <div class="sm:col-span-8 h-56 flex items-center justify-center">
-                        <canvas id="chart-units"></canvas>
-                    </div>
-                    <div class="sm:col-span-4 h-56 flex items-center justify-center">
-                        <canvas id="chart-status"></canvas>
-                    </div>
                 </div>
             </div>
 
@@ -2335,6 +2335,7 @@
                     "- Notas de 6.50 o menores (< 6.75) NO aprueban: debe INTENSIFICAR esa unidad.\n" +
                     "- Informes preliminares (1° y 2°) e informes de cierre cuatrimestral (1° y 2°): TEA (Trayectoria Educativa Avanzada), TEP (En Proceso), TED (Discontinua) o sin cargar.\n" +
                     "- Notas de 1° y 2° Cuatrimestre son numéricas; la Nota Final solo se habilita (y viene sugerida por promedio, editable) cuando ambos cuatrimestres son >= 7.\n" +
+                    "- REGLA DE CANTIDADES/TOTALES: Si la docente pregunta cuántos alumnos deben intensificar una unidad o un total numérico, respondé primero indicando el número total exacto de forma directa y destacada, antes de dar cualquier listado detallado de alumnos.\n" +
                     "Basate únicamente en los datos provistos, no inventes notas, respondé en Markdown prolijo.";
                 const fullPrompt =
                     `INFORMACIÓN DE LA PLANILLA (${filtroTxt}):\n` +

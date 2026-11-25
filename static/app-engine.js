@@ -1350,10 +1350,27 @@
     }
 
     buildChatLocalFallback(question, colegio, curso) {
-      const studentsList = this.getStudentsList(colegio, curso);
-      const stats = this.getSummaryStats(colegio, curso);
-      const riskStudents = this.getAtRiskStudents(colegio, curso);
       const qLower = question.toLowerCase();
+
+      let activeColegio = colegio;
+      let activeCurso = curso;
+
+      const allColegios = [...new Set(this.students.map(s => s.colegio))];
+      const allCursos = [...new Set(this.students.map(s => s.curso))];
+
+      const mentionedColegio = allColegios.find(c => qLower.includes(c.toLowerCase()));
+      const mentionedCurso = allCursos.find(cu => qLower.includes(cu.toLowerCase()));
+
+      if (mentionedColegio && (!activeColegio || activeColegio === 'Todos')) {
+        activeColegio = mentionedColegio;
+      }
+      if (mentionedCurso && (!activeCurso || activeCurso === 'Todos')) {
+        activeCurso = mentionedCurso;
+      }
+
+      const studentsList = this.getStudentsList(activeColegio, activeCurso);
+      const stats = this.getSummaryStats(activeColegio, activeCurso);
+      const riskStudents = this.getAtRiskStudents(activeColegio, activeCurso);
 
       const matchingStudents = [];
       for (const s of studentsList) {
@@ -1385,6 +1402,33 @@
       }
 
       let answer = '*(Respuesta generada en modo local)*\n\n';
+      const isCountQuestion = ['cuántos', 'cuantos', 'cuántas', 'cuantas', 'total', 'cantidad', 'número', 'numero'].some(k => qLower.includes(k));
+      const stopWords = new Set(['unidad', 'exam', 'examen', 'recu', 'recuperatorio', 'parte', 'modulo', 'módulo', 'la', 'el', 'de', 'del', 'en', 'los', 'las']);
+      
+      const mentionedUnit = (stats.unidades || []).find(u => {
+        const uLow = u.toLowerCase();
+        if (qLower.includes(uLow)) return true;
+        const words = uLow.split(/[\s\-–—()]+/).filter(w => w.length > 3 && !stopWords.has(w));
+        return words.length > 0 && words.some(w => qLower.includes(w));
+      });
+
+      if (isCountQuestion && mentionedUnit) {
+        const unitStats = stats.intensificacion_por_unidad.find(u => u.unidad.toLowerCase() === mentionedUnit.toLowerCase());
+        const count = unitStats ? unitStats.cantidad_intensifican : 0;
+        const totalEval = unitStats ? (unitStats.cantidad_intensifican + unitStats.cantidad_aprobados) : studentsList.length;
+        
+        answer += `En total, **${count} alumno(s)** tienen que intensificar la unidad **"${mentionedUnit}"**`;
+        if (activeColegio && activeColegio !== 'Todos') answer += ` en **${activeColegio}**`;
+        if (activeCurso && activeCurso !== 'Todos') answer += ` (${activeCurso})`;
+        answer += ` (sobre un total de ${totalEval} alumnos evaluados en dicha unidad).\n`;
+
+        if (count > 0) {
+          const matchingUnitStudents = studentsList.filter(s => s.unidades_intensificar.some(u => u.unidad.toLowerCase() === mentionedUnit.toLowerCase()));
+          answer += `\nDetalle de los alumnos:\n` + matchingUnitStudents.map(s => `- **${s.nombre_completo}** (${s.curso})`).join('\n');
+        }
+        return answer;
+      }
+
       if (['intensific', 'riesgo', 'desaprob', 'quiénes deben', 'quienes deben', 'pendiente'].some((k) => qLower.includes(k))) {
         if (riskStudents.length === 0) {
           answer += '¡Excelente! Ningún alumno tiene unidades pendientes de intensificar.';
