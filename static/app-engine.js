@@ -1355,10 +1355,33 @@
       const riskStudents = this.getAtRiskStudents(colegio, curso);
       const qLower = question.toLowerCase();
 
+      const matchingStudents = [];
       for (const s of studentsList) {
-        if ((s.nombre && qLower.includes(s.nombre.toLowerCase())) || (s.apellido && qLower.includes(s.apellido.toLowerCase()))) {
-          return this.buildStudentIntensificationMarkdown(s);
+        const nom = (s.nombre || '').toLowerCase();
+        const ape = (s.apellido || '').toLowerCase();
+        const full = (s.nombre_completo || '').toLowerCase();
+        if ((nom && qLower.includes(nom)) || (ape && qLower.includes(ape)) || (full && qLower.includes(full))) {
+          matchingStudents.push(s);
         }
+      }
+
+      if (matchingStudents.length === 1) {
+        return this.buildStudentIntensificationMarkdown(matchingStudents[0]);
+      } else if (matchingStudents.length > 1) {
+        const uniqueMap = new Map();
+        matchingStudents.forEach(s => uniqueMap.set(s.nombre_completo + '|' + s.curso, s));
+        const uniqueStudents = Array.from(uniqueMap.values());
+
+        if (uniqueStudents.length === 1) {
+          return this.buildStudentIntensificationMarkdown(uniqueStudents[0]);
+        }
+
+        let answer = `*(Encontré **${uniqueStudents.length} estudiantes** que coinciden con "${question}". ¿A cuál de ellos te referís?)*\n\n`;
+        uniqueStudents.forEach((s, idx) => {
+          answer += `${idx + 1}. **${s.nombre_completo}** — Curso: ${s.curso} (${s.colegio}) — Estado: ${s.estado}\n`;
+        });
+        answer += `\n*Por favor, indicá el nombre y apellido completo o el curso para ver su informe detallado.*`;
+        return answer;
       }
 
       let answer = '*(Respuesta generada en modo local)*\n\n';
